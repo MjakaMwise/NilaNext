@@ -87,6 +87,37 @@ test('the welcome tour leaves sign-in and account actions available', async () =
  assert.match(text(), /Welcome, Test/)
  await unmount()
 })
+test('phone welcome advances to sign-in and signup explains duplicate accounts', async () => {
+ await mount()
+ await click(document.querySelector('[aria-label="Sign out"]'))
+ const intro = document.querySelector('#school-intro')
+ const title = document.querySelector('h1')
+ const card = title.closest('[data-slot="card"]')
+ assert.ok(card.classList.contains('hidden'))
+ await click(document.querySelector('[aria-label="Next: continue to sign in"]'))
+ assert.ok(!card.classList.contains('hidden'))
+ assert.ok(intro.classList.contains('hidden'))
+ assert.equal(document.activeElement, title)
+
+ const auth = globalThis.__schoolClient.auth
+ try {
+  await click('New here? Create an account')
+  await fill('[name="email"]', 'admin@example.invalid')
+  await fill('[name="password"]', 'test-password')
+  auth.signUp = async () => ({ error: { code: 'user_already_exists' } })
+  await click('Create account')
+  assert.match(document.querySelector('[role="alert"]').textContent, /An account already exists/)
+  assert.ok(button('Forgot password?'))
+
+  auth.signUp = async () => ({ data: { session: null, user: { identities: [] } }, error: null })
+  await click('Create account')
+  assert.match(document.querySelector('[role="status"]').textContent, /If this is a new account/)
+  assert.match(document.querySelector('[role="status"]').textContent, /Already registered/)
+ } finally {
+  delete auth.signUp
+  await unmount()
+ }
+})
 test('teacher and parent views expose only their relevant actions',async()=>{
  await mount('teacher');assert.ok(!button('Fees'));assert.ok(!button('People & access'));await click('Students');assert.ok(!button('Add student'));await click('Attendance');assert.ok(button('Save register'));await unmount()
  await mount('parent');assert.ok(!button('Students'));assert.ok(!button('Classes'));await click('Academic reports');await click([...document.querySelectorAll('tbody button')].find(b=>b.textContent.includes('Preview')));assert.ok(!button('Edit marks'));await click(document.querySelector('[aria-label="Close dialog"]'));await click('Attendance');assert.ok(!button('Save register'));assert.ok(text().includes('Not marked'));await click('Fees');assert.ok(!button('Create invoice'));assert.ok(!button('Record payment'));await unmount()

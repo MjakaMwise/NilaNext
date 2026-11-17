@@ -1,4 +1,4 @@
-import React,{useState} from 'react'
+import React,{useEffect,useRef,useState} from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader } from './ui/card'
@@ -12,12 +12,12 @@ const introSlides = [
  { title: 'Keep families informed', description: 'Parents can check attendance, academic reports, and fee balances for their linked learners.' },
 ]
 
-function SchoolIntro() {
+function SchoolIntro({ mobileContinue, showOnMobile }) {
  const [step, setStep] = useState(0)
  const slide = introSlides[step]
 
  return (
-  <section id="school-intro" aria-label="About Nilatext" className="relative isolate flex min-h-96 flex-col justify-end overflow-hidden rounded-[1.5rem] bg-[#183522] text-white md:col-start-1 md:row-start-1 md:min-h-[40rem]">
+  <section id="school-intro" aria-label="About Nilatext" className={`${showOnMobile ? 'flex' : 'hidden md:flex'} relative isolate min-h-96 flex-col justify-end overflow-hidden rounded-[1.5rem] bg-[#183522] text-white md:col-start-1 md:row-start-1 md:min-h-[40rem]`}>
    <img src="/images/nilatext-classroom.webp" alt="" width="1100" height="1375" className="absolute inset-0 -z-20 size-full object-cover object-[center_38%]" />
    <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-t from-[#10291b] via-[#10291b]/85 via-24% to-transparent to-70%" />
    <div className="mt-48 grid gap-4 p-5 sm:p-7 lg:p-9">
@@ -25,7 +25,7 @@ function SchoolIntro() {
      <h2 className="max-w-sm text-2xl leading-tight font-semibold tracking-tight lg:text-3xl">{slide.title}</h2>
      <p className="min-h-[3em] max-w-sm text-sm leading-relaxed text-[#e9f3df] sm:text-base">{slide.description}</p>
     </div>
-    <div className="flex items-center justify-between gap-4">
+    <div className="hidden items-center justify-between gap-4 md:flex">
      <div className="flex items-center gap-1.5" aria-label={`Step ${step + 1} of ${introSlides.length}`} role="img">
       {introSlides.map(({title}, index) => (
        <span key={title} aria-hidden="true" className={index === step ? 'h-1.5 w-6 rounded-full bg-[#d5eea9]' : 'size-1.5 rounded-full bg-white/50'} />
@@ -42,13 +42,91 @@ function SchoolIntro() {
       </Button>
      </div>
     </div>
+    <Button type="button" aria-label="Next: continue to sign in" className="w-full rounded-full bg-[#d5eea9] text-[#173322] hover:bg-[#e7f5cf] md:hidden" onClick={mobileContinue}>
+     Next <ArrowRight aria-hidden="true" size={17} />
+    </Button>
    </div>
   </section>
  )
 }
 
-export default function Auth({recovery,onRecoveryDone}){const [mode,setMode]=useState('login'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
-async function submit(e){e.preventDefault();setBusy(true);setError('');setNotice('');const f=new FormData(e.currentTarget);try{if(recovery){const {error}=await supabase.auth.updateUser({password:f.get('password')});if(error)throw error;onRecoveryDone();return}if(mode==='login'){const {error}=await supabase.auth.signInWithPassword({email:f.get('email').trim(),password:f.get('password')});if(error)throw error}else if(mode==='signup'){const {data,error}=await supabase.auth.signUp({email:f.get('email').trim(),password:f.get('password'),options:{emailRedirectTo:location.origin}});if(error)throw error;if(!data.session)setNotice('Check your inbox to confirm your email, then return here and sign in.')}else{const {error}=await supabase.auth.resetPasswordForEmail(f.get('email').trim(),{redirectTo:location.origin});if(error)throw error;setNotice('If an account exists, a password reset link has been sent.')}}catch(err){setError(friendlyError(err))}finally{setBusy(false)}}
+const authErrors = {
+ user_already_exists: 'An account already exists for this email. Sign in or reset your password.',
+ email_exists: 'An account already exists for this email. Sign in or reset your password.',
+ invalid_credentials: 'The email or password is incorrect. Check both and try again, or reset your password.',
+ email_not_confirmed: 'Your email still needs confirmation. Open the confirmation link in your inbox or spam folder, then try signing in again.',
+ email_address_invalid: 'Enter a valid email address and try again.',
+ email_address_not_authorized: 'This email address cannot receive messages from the portal right now. Contact your school administrator for help.',
+ over_email_send_rate_limit: 'Too many emails were requested. Wait a few minutes before trying again.',
+ over_request_rate_limit: 'Too many attempts in a short time. Wait a few minutes before trying again.',
+ weak_password: 'Choose a stronger password. Use at least eight characters and avoid common passwords.',
+ same_password: 'Choose a password different from your current one.',
+ otp_expired: 'This link expired or was already used. Request a new link and open the most recent email.',
+ session_not_found: 'This reset session has expired. Request a new password reset link.',
+ signup_disabled: 'New registrations are currently closed. Contact your school administrator for help.',
+}
+
+function explainAuthError(error) {
+ const message = error?.message || ''
+ const code = error?.code
+ if (code && Object.hasOwn(authErrors, code)) return authErrors[code]
+ if (/user already registered/i.test(message)) return authErrors.user_already_exists
+ if (error?.status === 429) return authErrors.over_request_rate_limit
+ if (/failed to fetch|network|load failed/i.test(message)) {
+  return 'Could not connect to the sign-in service. Check your internet connection and try again.'
+ }
+ if (/sending.*email|smtp/i.test(message)) {
+  return 'The email could not be sent. Try again later or contact your school administrator.'
+ }
+ return 'We couldn’t complete that request. Try again in a moment. If the issue continues, contact your school administrator.'
+}
+
+export default function Auth({ recovery, onRecoveryDone }) {
+ const [mode, setMode] = useState('login')
+ const [busy, setBusy] = useState(false)
+ const [error, setError] = useState('')
+ const [notice, setNotice] = useState('')
+ const [mobileSignIn, setMobileSignIn] = useState(false)
+ const titleRef = useRef(null)
+
+ useEffect(() => {
+  if (mobileSignIn) titleRef.current?.focus()
+ }, [mobileSignIn])
+
+ async function submit(event) {
+  event.preventDefault()
+  setBusy(true)
+  setError('')
+  setNotice('')
+  const form = new FormData(event.currentTarget)
+  const email = form.get('email')?.trim()
+  const password = form.get('password')
+
+  try {
+   if (recovery) {
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw error
+    onRecoveryDone()
+   } else if (mode === 'login') {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+   } else if (mode === 'signup') {
+    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: location.origin } })
+    if (error) throw error
+    if (!data.session) {
+     setNotice('If this is a new account, check your inbox or spam folder for a confirmation email. Already registered? Sign in or reset your password.')
+    }
+   } else {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: location.origin })
+    if (error) throw error
+    setNotice('If an account exists for this email, check your inbox or spam folder for a reset link.')
+   }
+  } catch (error) {
+   setError(explainAuthError(error))
+  } finally {
+   setBusy(false)
+  }
+ }
  const title = recovery ? 'Choose a new password.' : {
   login: 'Welcome to your school.',
   signup: 'Create an account',
@@ -68,12 +146,12 @@ async function submit(e){e.preventDefault();setBusy(true);setError('');setNotice
  return (
   <main className="grid min-h-svh place-items-center bg-[#ebf1e5] p-3 sm:p-6">
    <div className="grid w-full max-w-6xl gap-3 rounded-[2rem] bg-[#dce8d4] p-2.5 sm:p-3 md:grid-cols-[1.08fr_1fr]">
-    <Card className="grid min-w-0 content-center gap-6 rounded-[1.5rem] border-0 bg-[#fffefa] py-9 shadow-none [--accent:#e8f0e0] [--input:#bac9b6] [--primary:#275538] [--ring:#47734f] sm:py-12 md:col-start-2 md:row-start-1">
+    <Card className={`${mobileSignIn || recovery ? 'grid' : 'hidden md:grid'} min-w-0 content-center gap-6 rounded-[1.5rem] border-0 bg-[#fffefa] py-9 shadow-none [--accent:#e8f0e0] [--input:#bac9b6] [--primary:#275538] [--ring:#47734f] sm:py-12 md:col-start-2 md:row-start-1`}>
      <div className="mx-auto w-full max-w-sm px-5 sm:px-7">
       <Brand />
      </div>
      <CardHeader className="mx-auto w-full max-w-sm flex-col gap-2 sm:px-7">
-      <h1 className="text-3xl leading-tight font-semibold tracking-tight text-[#1c3022] lg:text-4xl">{title}</h1>
+      <h1 ref={titleRef} tabIndex={-1} className="text-3xl leading-tight font-semibold tracking-tight text-[#1c3022] lg:text-4xl">{title}</h1>
       <p className="text-sm text-muted-foreground">{recovery ? 'Enter a new password for your account.' : {
        login: 'Sign in with your school portal account.',
        signup: 'Use the email address your school approved if you’re joining an existing school.',
@@ -94,12 +172,12 @@ async function submit(e){e.preventDefault();setBusy(true);setError('');setNotice
         <Button variant="link" className="px-0" disabled={busy} onClick={() => changeMode(mode === 'login' ? 'signup' : 'login')}>
          {mode === 'login' ? 'New here? Create an account' : 'Back to sign in'}
         </Button>
-        {mode === 'login' && <Button variant="link" className="px-0" disabled={busy} onClick={() => changeMode('reset')}>Forgot password?</Button>}
+        {mode !== 'reset' && <Button variant="link" className="px-0" disabled={busy} onClick={() => changeMode('reset')}>Forgot password?</Button>}
        </div>
       )}
      </CardContent>
     </Card>
-    <SchoolIntro />
+    <SchoolIntro showOnMobile={!mobileSignIn && !recovery} mobileContinue={() => setMobileSignIn(true)} />
    </div>
   </main>
  )
