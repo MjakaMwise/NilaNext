@@ -18,5 +18,5 @@ export function Badge({ className, variant, ...props }) {
 }
 
 export function AlertBox({ className, variant, ...props }) {
-  return <div data-slot="alert" role="alert" className={cn('rounded-lg border bg-card px-4 py-3 text-sm text-card-foreground', variant === 'destructive' && 'border-destructive/30 text-destructive', className)} {...props} />
+  return <div data-slot="alert" role="alert" className={cn('rounded-lg border bg-card px-4 py-3 text-sm wrap-anywhere text-card-foreground', variant === 'destructive' && 'border-destructive/30 text-destructive', className)} {...props} />
 }

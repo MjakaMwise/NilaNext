@@ -11,7 +11,7 @@ const directory=dirname(fileURLToPath(import.meta.url))
 const folder=await mkdtemp(join(directory,'.generated-'))
 const output=join(folder,'App.mjs')
 await build({entryPoints:[join(directory,'../src/App.jsx')],outfile:output,bundle:true,platform:'node',format:'esm',packages:'external',jsx:'automatic',plugins:[{name:'mock-school-client',setup(b){b.onResolve({filter:/\/supabase$/},()=>({path:'school-client',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const configured=true; export const supabase=globalThis.__schoolClient;',loader:'js'}))}}]})
-const dom=new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>',{url:'http://localhost:5173'})
+const dom=new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>',{url:'http://localhost:5173/?view=signin'})
 Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,FormData:dom.window.FormData,location:dom.window.location,IS_REACT_ACT_ENVIRONMENT:true})
 for (const key of ['CustomEvent','MutationObserver','Node','NodeFilter','HTMLInputElement']) globalThis[key]=dom.window[key]
 globalThis.getComputedStyle=dom.window.getComputedStyle.bind(dom.window)
@@ -115,6 +115,21 @@ test('phone welcome advances to sign-in and signup explains duplicate accounts',
   assert.match(document.querySelector('[role="status"]').textContent, /Already registered/)
  } finally {
   delete auth.signUp
+  await unmount()
+ }
+})
+test('the home page introduces Nilatext and links to sign-in and signup', async () => {
+ await mount()
+ dom.window.history.replaceState(null, '', '/')
+ try {
+  await click(document.querySelector('[aria-label="Sign out"]'))
+  assert.match(document.querySelector('h1').textContent, /Your school day, in one place/)
+  assert.ok(document.querySelector('a[href="/?view=signin"]'))
+  assert.ok(document.querySelector('a[href="/?view=signup"]'))
+  await click('Families')
+  assert.match(document.querySelector('[aria-live="polite"]').textContent, /Follow your learner/)
+ } finally {
+  dom.window.history.replaceState(null, '', '/?view=signin')
   await unmount()
  }
 })

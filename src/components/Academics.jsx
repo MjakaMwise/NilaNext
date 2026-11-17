@@ -226,7 +226,7 @@ export default function Academics({ page, profile, termId, data, refreshVersion 
           {assignments.map(row => <article className="grid gap-2 rounded-lg border p-4" key={row.id}>
             <h2 className="font-semibold">{row.title}</h2>
             <p className="text-sm text-muted-foreground">{offeringName(currentOfferings.get(row.offering_id))} · Due {row.due_on}</p>
-            <p className="whitespace-pre-wrap break-words">{row.instructions}</p>
+            <p className="whitespace-pre-wrap wrap-anywhere">{row.instructions}</p>
             <Button variant="outline" className="w-fit" aria-expanded={assignmentId === row.id}
               onClick={() => setAssignmentId(assignmentId === row.id ? '' : row.id)}>
               {assignmentId === row.id ? 'Hide responses' : 'View responses'}
@@ -419,7 +419,7 @@ function AssignmentResponses({ assignment, offering, profile, students, enrolmen
       {!result.responses.length && <p>No responses yet.</p>}
       {result.responses.map(row => <div key={row.id} className="rounded-lg border p-3">
         <b>{name(row.student_id)}</b>
-        <p className="whitespace-pre-wrap break-words">{row.response}</p>
+        <p className="whitespace-pre-wrap wrap-anywhere">{row.response}</p>
       </div>)}
       {profile.role === 'student' && candidates.length > 0 && <form className={formLayout} onSubmit={submit}>
         <Select label="Learner" name="student_id" options={candidates.map(row => [row.id, row.full_name])}

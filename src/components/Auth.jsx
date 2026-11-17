@@ -81,12 +81,12 @@ function explainAuthError(error) {
  return 'We couldn’t complete that request. Try again in a moment. If the issue continues, contact your school administrator.'
 }
 
-export default function Auth({ recovery, onRecoveryDone }) {
- const [mode, setMode] = useState('login')
+export default function Auth({ recovery, initialMode = 'login', onRecoveryDone }) {
+ const [mode, setMode] = useState(initialMode)
  const [busy, setBusy] = useState(false)
  const [error, setError] = useState('')
  const [notice, setNotice] = useState('')
- const [mobileSignIn, setMobileSignIn] = useState(false)
+ const [mobileSignIn, setMobileSignIn] = useState(initialMode === 'signup')
  const titleRef = useRef(null)
 
  useEffect(() => {
@@ -148,7 +148,7 @@ export default function Auth({ recovery, onRecoveryDone }) {
    <div className="grid w-full max-w-6xl gap-3 rounded-[2rem] bg-[#dce8d4] p-2.5 sm:p-3 md:grid-cols-[1.08fr_1fr]">
     <Card className={`${mobileSignIn || recovery ? 'grid' : 'hidden md:grid'} min-w-0 content-center gap-6 rounded-[1.5rem] border-0 bg-[#fffefa] py-9 shadow-none [--accent:#e8f0e0] [--input:#bac9b6] [--primary:#275538] [--ring:#47734f] sm:py-12 md:col-start-2 md:row-start-1`}>
      <div className="mx-auto w-full max-w-sm px-5 sm:px-7">
-      <Brand />
+      <a href="/" className="inline-block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4" aria-label="Back to Nilatext home"><Brand /></a>
      </div>
      <CardHeader className="mx-auto w-full max-w-sm flex-col gap-2 sm:px-7">
       <h1 ref={titleRef} tabIndex={-1} className="text-3xl leading-tight font-semibold tracking-tight text-[#1c3022] lg:text-4xl">{title}</h1>
