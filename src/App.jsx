@@ -9,6 +9,7 @@ import {ResizableWorkspace} from './components/ui/resizable'
 import {AlertBox,Badge} from './components/ui/feedback'
 import {Input,NativeSelect,Textarea} from './components/ui/form-controls'
 import Dashboard from './components/Dashboard'
+import ProductPage from './components/ProductPage'
 import Academics from './components/Academics'
 import {Brand,Heading,Panel,Stat,Empty,Table,Pill,Modal,Field,Actions,Alert} from './components/UI'
 const emptyData={classes:[],students:[],marks:[],attendance:[],invoices:[],payments:[],profiles:[],invites:[],links:[],notes:[]}
@@ -26,17 +27,42 @@ export default function App(){
  useEffect(()=>{initialize()},[initialize])
  const load=useCallback(async()=>{if(!profile||!termId)return;const version=++loadVersion.current;setLoading(true);setError('');try{const sid=profile.school_id,admin=profile.role==='admin',staff=['admin','teacher'].includes(profile.role);const values=await Promise.all([allRows('nt_classes',sid),allRows('nt_students',sid),allRows('nt_marks',sid,{term_id:termId}),allRows('nt_attendance',sid,{day}),allRows('nt_invoices',sid,{term_id:termId}),allRows('nt_payments',sid),admin?allRows('nt_profiles',sid):Promise.resolve([]),admin?allRows('nt_invites',sid):Promise.resolve([]),admin?allRows('nt_student_links',sid):Promise.resolve([]),staff?unwrap(supabase.from('nt_notes').select('*').eq('school_id',sid).order('created_at',{ascending:false}).limit(10)):Promise.resolve([])]);if(version!==loadVersion.current)return;const next=Object.fromEntries(Object.keys(emptyData).map((k,i)=>[k,values[i]]));setData(next);setAttendanceDraft(Object.fromEntries(next.attendance.map(a=>[a.student_id,a.status])))}catch(e){if(version===loadVersion.current){setData(emptyData);setError(friendlyError(e))}}finally{if(version===loadVersion.current)setLoading(false)}},[profile,termId,day])
  useEffect(()=>{load()},[load])
- useEffect(()=>{if(toast){const t=setTimeout(()=>setToast(''),4000);return()=>clearTimeout(t)}},[toast])
+ useEffect(() => {
+  if (!toast) return
+  let timer
+  function scheduleDismissal() {
+   clearTimeout(timer)
+   if (!document.hidden) timer = setTimeout(() => setToast(''), 4000)
+  }
+  scheduleDismissal()
+  document.addEventListener('visibilitychange', scheduleDismissal)
+  return () => {
+   clearTimeout(timer)
+   document.removeEventListener('visibilitychange', scheduleDismissal)
+  }
+ }, [toast])
  async function signOut(){const {error}=await supabase.auth.signOut();if(error)setError(friendlyError(error))}
  const closeModal=useCallback(()=>setModal(null),[])
  const navigate=p=>{
-  if(menuOpen) pageContent.current?.focus()
-  if(pageContent.current) pageContent.current.scrollTop=0
+  const content = pageContent.current
+  if (content) {
+   if (menuOpen || content.contains(document.activeElement)) content.focus({ preventScroll: true })
+   content.scrollTop = 0
+   if (window.matchMedia?.('(width < 64rem)').matches) {
+    window.requestAnimationFrame(() => content.scrollIntoView({ block: 'start', behavior: 'instant' }))
+   }
+  }
   setMenuOpen(false);setPage(p);setSearch('');setClassFilter('');setModal(null)
  }
  async function mutate(fn,message){setSaving(true);try{await fn();setModal(null);setToast(message);await load();return true}catch(e){setError(friendlyError(e));return false}finally{setSaving(false)}}
  if(!authReady||initializing)return <div className="grid min-h-svh place-content-center gap-4 p-6 text-muted-foreground"><Brand/><p>Opening your school workspace…</p></div>
- if(!session||recovery)return <Auth recovery={recovery} onRecoveryDone={()=>{setRecovery(false);setToast('Password updated')}}/>
+ if(!session || recovery) {
+  const search = new URLSearchParams(location.search)
+  const view = search.get('view')
+  const authCallback = search.has('code') || search.has('error_code') || new URLSearchParams(location.hash.slice(1)).has('error_code')
+  if (!recovery && !authCallback && view !== 'signin' && view !== 'signup') return <ProductPage />
+  return <Auth recovery={recovery} initialMode={view === 'signup' ? 'signup' : 'login'} onRecoveryDone={()=>{setRecovery(false);setToast('Password updated')}}/>
+ }
  if(error&&!profile)return <div className="mx-auto grid min-h-svh max-w-lg content-center gap-6 p-4"><Panel title="Could not open your workspace"><Alert>{error}</Alert><div className="flex flex-wrap items-center gap-2"><Button onClick={initialize}>Try again</Button><Button variant="outline" onClick={signOut}>Sign out</Button></div></Panel></div>
  if(!profile)return <Onboarding refresh={initialize} signOut={signOut}/>
  const admin=profile.role==='admin',staff=admin||profile.role==='teacher',pages=[...permittedPages(profile.role),...academicPages.filter(name=>name==='Curriculum'?admin:name==='My teaching'?profile.role==='teacher':true)],term=terms.find(t=>t.id===termId),termLabel=term?`Term ${term.number} · ${term.year}`:'No term',selected=pages.includes(page)?page:'Overview';
@@ -58,6 +84,7 @@ export default function App(){
  if(selected==='School settings')content=<><Heading title="School settings" subtitle="School identity and academic terms."/><Panel title="School details"><form className="grid max-w-md justify-items-start gap-4 [&>label]:w-full" onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();mutate(async()=>{const s=await editRow('nt_schools',school.id,{name});setSchool(s)},'School updated')}}><Field label="School name" name="name" defaultValue={school?.name} minLength={2} maxLength={120} required/><Button disabled={saving}>Save school details</Button></form></Panel><Panel title="Academic terms" action={<Button variant="outline" onClick={()=>setModal({type:'term'})}><Plus size={16}/> Add term</Button>}><Table headers={['Year','Term']} empty={!terms.length}>{terms.map(t=><tr key={t.id}><td>{t.year}</td><td>Term {t.number}</td></tr>)}</Table></Panel><Panel title="Connected workspace"><p className="text-muted-foreground">School records are stored in Supabase. Access is checked in the database on every request. This application uses the project’s publishable key.</p><p className="text-sm text-muted-foreground">Signed in as {session.user.email}. Your role is {ROLES[profile.role]}.</p></Panel></>;
  return (
   <>
+   <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-40 focus:rounded-md focus:bg-card focus:px-4 focus:py-3 focus:ring-2 focus:ring-ring">Skip to workspace content</a>
    <ResizableWorkspace navigation={
    <aside id="pane-navigation" className="portal-sidebar flex min-h-0 min-w-0 flex-col gap-3 border-b bg-card px-4 py-3 lg:overflow-y-auto lg:rounded-xl lg:border lg:py-4"
     onKeyDown={event=>{
@@ -103,23 +130,23 @@ export default function App(){
       <label htmlFor="workspace-term" className="text-sm font-semibold">Academic term</label>
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial xl:[&>span]:flex-1">
        <NativeSelect id="workspace-term" aria-label="Academic term" value={termId} disabled={loading} onChange={e=>{setData(emptyData);setModal(null);setTermId(e.target.value)}}>{terms.map(t=><option key={t.id} value={t.id}>Term {t.number} · {t.year}</option>)}</NativeSelect>
-       <Button variant="ghost" size="icon" aria-label="Refresh school data" disabled={loading} onClick={load}><RefreshCw size={17} className={loading?'motion-safe:animate-spin':''}/></Button>
+       <Button variant="ghost" size="icon" aria-label="Refresh school data" aria-disabled={loading} onClick={() => { if (!loading) load() }}><RefreshCw size={17} className={loading?'motion-safe:animate-spin':''}/></Button>
       </div>
      </div>
     </aside>
    }>
-   <main ref={pageContent} tabIndex={-1} className="portal-content min-h-0 min-w-0 lg:overflow-y-auto lg:rounded-xl lg:border lg:bg-card">
+   <main id="workspace-content" aria-label={selected} ref={pageContent} tabIndex={-1} className="portal-content min-h-0 min-w-0 lg:overflow-y-auto lg:rounded-xl lg:border lg:bg-card">
     <header className="border-b bg-card px-4 py-3 sm:px-7 lg:sticky lg:top-0 lg:z-10">
-     <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><span className="truncate">{school?.name}</span><ChevronRight size={14} className="shrink-0"/><b className="font-medium text-foreground">{selected}</b></div>
+     <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><span className="truncate">{school?.name}</span><ChevronRight size={14} className="shrink-0"/><b className="shrink-0 font-medium text-foreground">{selected}</b></div>
     </header>
     <div className="mx-auto max-w-[90rem] space-y-5 px-4 py-6 sm:px-7 lg:py-8">
      <Alert>{error}</Alert>
      {error&&<Button variant="outline" onClick={()=>{setError('');load()}}>Retry loading</Button>}
-     {loading?<div role="status" className="flex items-center gap-3 py-12 text-muted-foreground"><RefreshCw className="motion-safe:animate-spin" size={20}/><p>Loading school records…</p></div>:content}
+     {loading?<div role="status" className="flex items-center gap-3 py-12 text-muted-foreground"><RefreshCw aria-hidden="true" className="motion-safe:animate-spin" size={20}/><p>Loading school records…</p></div>:content}
     </div>
    </main>
    </ResizableWorkspace>
-   {toast&&<div role="status" className="portal-toast fixed z-30 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm shadow-lg"><CheckCircle2 size={18} className="text-primary"/>{toast}</div>}
+   {toast&&<div role="status" className="portal-toast fixed z-30 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm shadow-lg"><CheckCircle2 aria-hidden="true" size={18} className="shrink-0 text-primary"/><span className="wrap-anywhere">{toast}</span></div>}
    {modal&&<SchoolModal modal={modal} close={closeModal} data={data} profile={profile} school={school} term={term} saving={saving} mutate={mutate} initialize={initialize} className={className} marksFor={marksFor} setModal={setModal}/>}
   </>
  )

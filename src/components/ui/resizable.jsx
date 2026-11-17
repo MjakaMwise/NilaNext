@@ -30,10 +30,10 @@ function ResizeHandle({ pane, label, side, size, onResize, className }) {
         if (!event.isPrimary || event.button !== 0) return
         event.currentTarget.focus({ preventScroll: true })
         event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = { x: event.clientX, size }
+        drag.current = { pointerId: event.pointerId, x: event.clientX, size }
       }}
       onPointerMove={event => {
-        if (drag.current) changeSize(drag.current.size + direction * (event.clientX - drag.current.x))
+        if (drag.current?.pointerId === event.pointerId) changeSize(drag.current.size + direction * (event.clientX - drag.current.x))
       }}
       onLostPointerCapture={() => { drag.current = null }}
       onDoubleClick={() => changeSize(initial)}

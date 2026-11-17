@@ -13,7 +13,7 @@ export function TableHeader({ className, ...props }) {
 }
 
 export function TableBody({ className, ...props }) {
-  return <tbody data-slot="table-body" className={cn('[&_tr]:border-b [&_tr]:transition-colors [&_tr:hover]:bg-muted/50 [&_tr:last-child]:border-0 [&_td]:px-3 [&_td]:py-2', className)} {...props} />
+  return <tbody data-slot="table-body" className={cn('[&_tr]:border-b [&_tr:hover]:bg-muted/50 [&_tr:last-child]:border-0 [&_td]:px-3 [&_td]:py-2', className)} {...props} />
 }
 
 export function TableHead({ className, ...props }) {
