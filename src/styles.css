@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.982 0.004 250);
+  --foreground: oklch(0.237 0.024 261);
+  --card: oklch(1 0 0);
+  --primary: oklch(0.46 0.166 260);
+  --primary-foreground: oklch(0.99 0 0);
+  --muted: oklch(0.955 0.009 251);
+  --muted-foreground: oklch(0.46 0.027 257);
+  --accent: oklch(0.936 0.025 251);
+  --destructive: oklch(0.48 0.19 27);
+  --border: oklch(0.905 0.012 252);
+  --input: oklch(0.78 0.02 251);
+  --ring: oklch(0.53 0.15 259);
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
+  button:not(:disabled) { cursor: pointer; }
+}
+
+@media print {
+  @page { margin: 15mm; }
+  body { background: white; color: black; }
+  body:has([data-slot="dialog-content"] .report) #root, [data-slot="dialog-overlay"], [data-slot="dialog-content"] > :not(.report) { display: none !important; }
+  [data-slot="dialog-content"]:has(.report) { position: static !important; translate: none !important; transform: none !important; display: block !important; width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+}
