@@ -2,7 +2,7 @@ import { cn } from '../../lib/utils'
 
 export function Table({ className, ...props }) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div data-slot="table-container" tabIndex={0} role="region" aria-label="Scrollable table" className="relative w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-ring">
       <table data-slot="table" className={cn('w-full caption-bottom text-sm', className)} {...props} />
     </div>
   )

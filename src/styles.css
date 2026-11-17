@@ -41,9 +41,72 @@
   button:not(:disabled) { cursor: pointer; }
 }
 
+@media screen {
+  #root {
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  @media (width < 64rem) {
+    .portal-sidebar {
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+  }
+
+  .portal-toast {
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
 @media print {
   @page { margin: 15mm; }
   body { background: white; color: black; }
   body:has([data-slot="dialog-content"] .report) #root, [data-slot="dialog-overlay"], [data-slot="dialog-content"] > :not(.report) { display: none !important; }
   [data-slot="dialog-content"]:has(.report) { position: static !important; translate: none !important; transform: none !important; display: block !important; width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+}
+
+@media screen {
+  * { scrollbar-width: none; }
+  *::-webkit-scrollbar { display: none; }
+
+  @media (width >= 64rem) {
+    .portal-workspace {
+      display: grid;
+      height: calc(100dvh - env(safe-area-inset-bottom));
+      min-height: 0;
+      padding: max(0.5rem, env(safe-area-inset-top)) 0.5rem 0.5rem;
+      grid-template-columns: var(--navigation-width) 0.75rem minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas:
+        "navigation resize-navigation tools"
+        "navigation resize-navigation content";
+    }
+
+    .portal-sidebar { grid-area: navigation; }
+    .navigation-divider { grid-area: resize-navigation; }
+    .portal-tools { grid-area: tools; }
+    .portal-content { grid-area: content; }
+    .workspace-tools-divider { grid-area: resize-tools; }
+
+    .workspace-divider::before {
+      content: "";
+      position: absolute;
+      inset: 0 calc(50% - 1px);
+      border-radius: inherit;
+      background: var(--border);
+    }
+
+    .workspace-divider:is(:hover, :focus-visible, :active)::before {
+      background: var(--ring);
+    }
+  }
+
+  @media (width >= 80rem) {
+    .portal-workspace {
+      grid-template-columns: var(--navigation-width) 0.75rem minmax(0, 1fr) 0.75rem var(--workspace-width);
+      grid-template-rows: minmax(0, 1fr);
+      grid-template-areas: "navigation resize-navigation content resize-tools tools";
+    }
+  }
 }
