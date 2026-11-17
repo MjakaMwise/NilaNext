@@ -1,10 +1,11 @@
 import React,{useEffect,useState,useCallback,useRef} from 'react'
-import {LayoutDashboard,Users,BookOpen,FileText,CalendarCheck,Wallet,ShieldCheck,Settings,LogOut,RefreshCw,Plus,GraduationCap,ArrowUpRight,Download,Printer,Search,ChevronRight,CheckCircle2,AlertCircle} from 'lucide-react'
+import {LayoutDashboard,Users,BookOpen,FileText,CalendarCheck,Wallet,ShieldCheck,Settings,LogOut,RefreshCw,Plus,GraduationCap,ArrowUpRight,Download,Printer,Search,ChevronRight,CheckCircle2,AlertCircle,Menu,X} from 'lucide-react'
 import {supabase,configured} from './lib/supabase'
 import {allRows,unwrap,addRow,editRow} from './lib/api'
 import {ROLES,SUBJECTS,money,localDate,average,progress,balance,validPayment,downloadCSV,permittedPages,friendlyError} from './lib/domain'
 import Auth,{Onboarding} from './components/Auth'
 import {Button} from './components/ui/button'
+import {ResizableWorkspace} from './components/ui/resizable'
 import {AlertBox,Badge} from './components/ui/feedback'
 import {Input,NativeSelect,Textarea} from './components/ui/form-controls'
 import Dashboard from './components/Dashboard'
@@ -17,8 +18,10 @@ const academicIcons=[BookOpen,Users,CalendarCheck,CalendarCheck,FileText]
 const navNames=['Overview','Students','Classes','Academic reports','Attendance','Fees','People & access','School settings']
 export default function App(){
  const [session,setSession]=useState(null),[authReady,setAuthReady]=useState(!configured),[recovery,setRecovery]=useState(false),[profile,setProfile]=useState(null),[school,setSchool]=useState(null),[terms,setTerms]=useState([]),[termId,setTermId]=useState(''),[day,setDay]=useState(localDate()),[data,setData]=useState(emptyData),[page,setPage]=useState('Overview'),[loading,setLoading]=useState(false),[initializing,setInitializing]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState(''),[modal,setModal]=useState(null),[search,setSearch]=useState(''),[classFilter,setClassFilter]=useState(''),[attendanceDraft,setAttendanceDraft]=useState({}),[saving,setSaving]=useState(false)
+ const [menuOpen,setMenuOpen]=useState(false)
+ const menuButton=useRef(null), pageContent=useRef(null)
  const loadVersion=useRef(0),initVersion=useRef(0)
- useEffect(()=>{if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange((event,s)=>{setSession(s);if(event==='PASSWORD_RECOVERY')setRecovery(true);setAuthReady(true);if(!s){setProfile(null);setSchool(null);setData(emptyData);setTerms([]);setTermId('');setModal(null);setPage('Overview');setError('');initVersion.current++;loadVersion.current++}});return()=>subscription.unsubscribe()},[])
+ useEffect(()=>{if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange((event,s)=>{setSession(s);if(event==='PASSWORD_RECOVERY')setRecovery(true);setAuthReady(true);if(!s){setProfile(null);setSchool(null);setData(emptyData);setTerms([]);setTermId('');setModal(null);setPage('Overview');setMenuOpen(false);setError('');initVersion.current++;loadVersion.current++}});return()=>subscription.unsubscribe()},[])
  const initialize=useCallback(async()=>{if(!session)return;const version=++initVersion.current;setInitializing(true);setError('');try{const p=await unwrap(supabase.from('nt_profiles').select('*').eq('user_id',session.user.id).maybeSingle());if(version!==initVersion.current)return;setProfile(p);if(p){const [s,ts]=await Promise.all([unwrap(supabase.from('nt_schools').select('*').eq('id',p.school_id).single()),allRows('nt_terms',p.school_id)]);if(version!==initVersion.current)return;setSchool(s);ts.sort((a,b)=>b.year-a.year||a.number-b.number);setTerms(ts);setTermId(current=>ts.some(t=>t.id===current)?current:ts[0]?.id||'')}}catch(e){if(version===initVersion.current)setError(friendlyError(e))}finally{if(version===initVersion.current)setInitializing(false)}},[session?.user.id])
  useEffect(()=>{initialize()},[initialize])
  const load=useCallback(async()=>{if(!profile||!termId)return;const version=++loadVersion.current;setLoading(true);setError('');try{const sid=profile.school_id,admin=profile.role==='admin',staff=['admin','teacher'].includes(profile.role);const values=await Promise.all([allRows('nt_classes',sid),allRows('nt_students',sid),allRows('nt_marks',sid,{term_id:termId}),allRows('nt_attendance',sid,{day}),allRows('nt_invoices',sid,{term_id:termId}),allRows('nt_payments',sid),admin?allRows('nt_profiles',sid):Promise.resolve([]),admin?allRows('nt_invites',sid):Promise.resolve([]),admin?allRows('nt_student_links',sid):Promise.resolve([]),staff?unwrap(supabase.from('nt_notes').select('*').eq('school_id',sid).order('created_at',{ascending:false}).limit(10)):Promise.resolve([])]);if(version!==loadVersion.current)return;const next=Object.fromEntries(Object.keys(emptyData).map((k,i)=>[k,values[i]]));setData(next);setAttendanceDraft(Object.fromEntries(next.attendance.map(a=>[a.student_id,a.status])))}catch(e){if(version===loadVersion.current){setData(emptyData);setError(friendlyError(e))}}finally{if(version===loadVersion.current)setLoading(false)}},[profile,termId,day])
@@ -26,7 +29,11 @@ export default function App(){
  useEffect(()=>{if(toast){const t=setTimeout(()=>setToast(''),4000);return()=>clearTimeout(t)}},[toast])
  async function signOut(){const {error}=await supabase.auth.signOut();if(error)setError(friendlyError(error))}
  const closeModal=useCallback(()=>setModal(null),[])
- const navigate=p=>{setPage(p);setSearch('');setClassFilter('');setModal(null)}
+ const navigate=p=>{
+  if(menuOpen) pageContent.current?.focus()
+  if(pageContent.current) pageContent.current.scrollTop=0
+  setMenuOpen(false);setPage(p);setSearch('');setClassFilter('');setModal(null)
+ }
  async function mutate(fn,message){setSaving(true);try{await fn();setModal(null);setToast(message);await load();return true}catch(e){setError(friendlyError(e));return false}finally{setSaving(false)}}
  if(!authReady||initializing)return <div className="grid min-h-svh place-content-center gap-4 p-6 text-muted-foreground"><Brand/><p>Opening your school workspace…</p></div>
  if(!session||recovery)return <Auth recovery={recovery} onRecoveryDone={()=>{setRecovery(false);setToast('Password updated')}}/>
@@ -50,18 +57,30 @@ export default function App(){
  if(selected==='People & access')content=<><Heading title="People & access" subtitle="Approve email addresses before inviting people to register."><Button onClick={()=>setModal({type:'invite'})}><Plus size={16}/> Approve access</Button></Heading><AlertBox>Share the portal address with approved members. They can register with their approved email and choose “Join my school”.</AlertBox><Panel title="School members"><Table headers={['Name','Email','Role','Access']} empty={!data.profiles.length}>{data.profiles.map(p=><tr key={p.user_id}><td>{p.display_name}</td><td>{p.email}</td><td><Pill tone="neutral">{ROLES[p.role]}</Pill></td><td>{p.role!=='admin'&&<Button variant="ghost" size="sm" className="text-destructive" onClick={()=>setModal({type:'revoke',member:p})}>Revoke access</Button>}</td></tr>)}</Table></Panel><Panel title="Access approvals"><Table headers={['Email','Role','Linked learner','Status','Action']} empty={!data.invites.length}>{data.invites.map(i=><tr key={i.id}><td>{i.email}</td><td>{ROLES[i.role]}</td><td>{data.students.find(s=>s.id===i.student_id)?.full_name||'—'}</td><td><Pill tone={i.accepted_at?'':'amber'}>{i.accepted_at?'Joined':'Pending'}</Pill></td><td>{!i.accepted_at&&<Button variant="ghost" size="sm" className="text-destructive" onClick={()=>setModal({type:'cancelInvite',invite:i})}>Cancel approval</Button>}</td></tr>)}</Table></Panel><Panel title="Link another learner" subtitle="Parents can follow more than one learner. Choose an existing parent or student account."><InlineLink profiles={data.profiles} students={data.students} links={data.links} saving={saving} onSave={v=>mutate(()=>addRow('nt_student_links',{school_id:profile.school_id,...v}),'Learner linked')}/></Panel></>;
  if(selected==='School settings')content=<><Heading title="School settings" subtitle="School identity and academic terms."/><Panel title="School details"><form className="grid max-w-md justify-items-start gap-4 [&>label]:w-full" onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();mutate(async()=>{const s=await editRow('nt_schools',school.id,{name});setSchool(s)},'School updated')}}><Field label="School name" name="name" defaultValue={school?.name} minLength={2} maxLength={120} required/><Button disabled={saving}>Save school details</Button></form></Panel><Panel title="Academic terms" action={<Button variant="outline" onClick={()=>setModal({type:'term'})}><Plus size={16}/> Add term</Button>}><Table headers={['Year','Term']} empty={!terms.length}>{terms.map(t=><tr key={t.id}><td>{t.year}</td><td>Term {t.number}</td></tr>)}</Table></Panel><Panel title="Connected workspace"><p className="text-muted-foreground">School records are stored in Supabase. Access is checked in the database on every request. This application uses the project’s publishable key.</p><p className="text-sm text-muted-foreground">Signed in as {session.user.email}. Your role is {ROLES[profile.role]}.</p></Panel></>;
  return (
-  <div className="min-h-svh lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-   <aside className="flex min-w-0 flex-col gap-3 border-b bg-card px-4 py-4 lg:sticky lg:top-0 lg:h-svh lg:border-r lg:border-b-0">
-    <div className="flex flex-wrap items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-5">
+  <>
+   <ResizableWorkspace navigation={
+   <aside id="pane-navigation" className="portal-sidebar flex min-h-0 min-w-0 flex-col gap-3 border-b bg-card px-4 py-3 lg:overflow-y-auto lg:rounded-xl lg:border lg:py-4"
+    onKeyDown={event=>{
+     if(event.key==='Escape' && menuOpen){
+      setMenuOpen(false)
+      menuButton.current?.focus()
+     }
+    }}>
+    <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-5">
      <Brand/>
-     <Badge variant="secondary">Academic year {term?.year || new Date().getFullYear()}</Badge>
+     <Badge className="hidden lg:inline-flex" variant="secondary">Academic year {term?.year || new Date().getFullYear()}</Badge>
+     <Button ref={menuButton} type="button" variant="outline" className="lg:hidden"
+      aria-expanded={menuOpen} aria-controls="school-navigation" onClick={()=>setMenuOpen(open=>!open)}>
+      {menuOpen?<X size={17} aria-hidden="true"/>:<Menu size={17} aria-hidden="true"/>} Menu
+     </Button>
     </div>
-    <nav aria-label="School portal" className="flex min-w-0 gap-1 overflow-x-auto py-1 lg:flex-col lg:overflow-y-auto [&>button]:shrink-0">
+    <div id="school-navigation" className={`${menuOpen?'flex':'hidden'} min-h-0 min-w-0 flex-col gap-3 lg:flex lg:flex-1`}>
+    <nav aria-label="School portal" className="grid max-h-[55svh] min-w-0 gap-1 overflow-y-auto p-1 sm:grid-cols-2 lg:flex lg:max-h-none lg:flex-col [&>button]:shrink-0">
      {pages.map(p => {
       const Icon = navIcons[navNames.indexOf(p)] || academicIcons[academicPages.indexOf(p)]
       const current = selected === p
       return (
-       <Button key={p} variant={current ? 'secondary' : 'ghost'} aria-current={current ? 'page' : undefined} className="justify-start px-3" onClick={() => navigate(p)}>
+       <Button key={p} variant={current ? 'secondary' : 'ghost'} aria-current={current ? 'page' : undefined} className="justify-start px-3 text-left" onClick={() => navigate(p)}>
         <Icon size={17}/>{p}
         {p === 'Students' && <Badge variant="outline" className="nav-count ml-auto">{data.students.length}</Badge>}
        </Button>
@@ -76,14 +95,22 @@ export default function App(){
      </div>
      <Button variant="ghost" size="icon" aria-label="Sign out" onClick={signOut}><LogOut size={17}/></Button>
     </div>
+    </div>
    </aside>
-   <main className="min-w-0">
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-3 sm:px-7">
-     <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><span className="truncate">{school?.name}</span><ChevronRight size={14} className="shrink-0"/><b className="font-medium text-foreground">{selected}</b></div>
-     <div className="flex items-center gap-1">
-      <NativeSelect aria-label="Academic term" value={termId} disabled={loading} onChange={e=>{setData(emptyData);setModal(null);setTermId(e.target.value)}}>{terms.map(t=><option key={t.id} value={t.id}>Term {t.number} · {t.year}</option>)}</NativeSelect>
-      <Button variant="ghost" size="icon" aria-label="Refresh school data" disabled={loading} onClick={load}><RefreshCw size={17} className={loading?'motion-safe:animate-spin':''}/></Button>
+   } workspace={
+    <aside id="pane-workspace" aria-label="Term controls" className="portal-tools min-w-0 border-b bg-card px-4 py-3 xl:overflow-y-auto xl:rounded-xl xl:border xl:py-4">
+     <div className="flex flex-wrap items-center justify-between gap-2 xl:flex-col xl:items-stretch xl:gap-3">
+      <label htmlFor="workspace-term" className="text-sm font-semibold">Academic term</label>
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial xl:[&>span]:flex-1">
+       <NativeSelect id="workspace-term" aria-label="Academic term" value={termId} disabled={loading} onChange={e=>{setData(emptyData);setModal(null);setTermId(e.target.value)}}>{terms.map(t=><option key={t.id} value={t.id}>Term {t.number} · {t.year}</option>)}</NativeSelect>
+       <Button variant="ghost" size="icon" aria-label="Refresh school data" disabled={loading} onClick={load}><RefreshCw size={17} className={loading?'motion-safe:animate-spin':''}/></Button>
+      </div>
      </div>
+    </aside>
+   }>
+   <main ref={pageContent} tabIndex={-1} className="portal-content min-h-0 min-w-0 lg:overflow-y-auto lg:rounded-xl lg:border lg:bg-card">
+    <header className="border-b bg-card px-4 py-3 sm:px-7 lg:sticky lg:top-0 lg:z-10">
+     <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><span className="truncate">{school?.name}</span><ChevronRight size={14} className="shrink-0"/><b className="font-medium text-foreground">{selected}</b></div>
     </header>
     <div className="mx-auto max-w-[90rem] space-y-5 px-4 py-6 sm:px-7 lg:py-8">
      <Alert>{error}</Alert>
@@ -91,12 +118,13 @@ export default function App(){
      {loading?<div role="status" className="flex items-center gap-3 py-12 text-muted-foreground"><RefreshCw className="motion-safe:animate-spin" size={20}/><p>Loading school records…</p></div>:content}
     </div>
    </main>
-   {toast&&<div role="status" className="fixed right-4 bottom-4 z-30 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm shadow-lg"><CheckCircle2 size={18} className="text-primary"/>{toast}</div>}
+   </ResizableWorkspace>
+   {toast&&<div role="status" className="portal-toast fixed z-30 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm shadow-lg"><CheckCircle2 size={18} className="text-primary"/>{toast}</div>}
    {modal&&<SchoolModal modal={modal} close={closeModal} data={data} profile={profile} school={school} term={term} saving={saving} mutate={mutate} initialize={initialize} className={className} marksFor={marksFor} setModal={setModal}/>}
-  </div>
+  </>
  )
 }
-function InlineLink({profiles,students,links,saving,onSave}){return <form className="grid items-end gap-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={e=>{e.preventDefault();onSave(Object.fromEntries(new FormData(e.currentTarget)))}}><Field label="Account"><NativeSelect name="user_id" required defaultValue=""><option value="" disabled>Select account</option>{profiles.filter(p=>['parent','student'].includes(p.role)).map(p=><option key={p.user_id} value={p.user_id}>{p.display_name} · {ROLES[p.role]}</option>)}</NativeSelect></Field><Field label="Learner"><NativeSelect name="student_id" required defaultValue=""><option value="" disabled>Select learner</option>{students.map(s=><option value={s.id} key={s.id}>{s.full_name}</option>)}</NativeSelect></Field><Button disabled={saving}>Link learner</Button></form>}
+function InlineLink({profiles,students,links,saving,onSave}){return <form className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={e=>{e.preventDefault();onSave(Object.fromEntries(new FormData(e.currentTarget)))}}><Field label="Account"><NativeSelect name="user_id" required defaultValue=""><option value="" disabled>Select account</option>{profiles.filter(p=>['parent','student'].includes(p.role)).map(p=><option key={p.user_id} value={p.user_id}>{p.display_name} · {ROLES[p.role]}</option>)}</NativeSelect></Field><Field label="Learner"><NativeSelect name="student_id" required defaultValue=""><option value="" disabled>Select learner</option>{students.map(s=><option value={s.id} key={s.id}>{s.full_name}</option>)}</NativeSelect></Field><Button disabled={saving}>Link learner</Button></form>}
 function SchoolModal({modal,close,data,profile,school,term,saving,mutate,initialize,className,marksFor,setModal}){
  const [error,setError]=useState(''),[inviteRole,setInviteRole]=useState('teacher');const admin=profile.role==='admin',staff=admin||profile.role==='teacher',sid=profile.school_id,s=modal.student,c=modal.class,invoice=modal.invoice;
  async function submit(e){e.preventDefault();setError('');let f=Object.fromEntries(new FormData(e.currentTarget));try{let action;if(modal.type==='student'){if(!admin)throw new Error('Administrator access required');const row={school_id:sid,full_name:f.full_name.trim(),admission_no:f.admission_no.trim(),class_id:f.class_id,guardian_name:f.guardian_name.trim(),guardian_phone:f.guardian_phone.trim(),active:f.active==='true'};action=()=>s?editRow('nt_students',s.id,row):addRow('nt_students',row)}

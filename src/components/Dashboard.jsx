@@ -17,10 +17,10 @@ function Calendar({selected,onSelect}){
     <span className="text-sm font-medium" aria-live="polite">{label}</span>
     <Button variant="outline" size="icon" aria-label="Next month" onClick={() => move(1)}><ChevronRight size={16} /></Button>
    </div>
-   <div className="grid grid-cols-6 gap-1">
+   <div className="grid grid-cols-4 gap-1 sm:grid-cols-6">
     {Array.from({length:12}, (_, i) => {
      const date = new Date(year, i)
-     return <Button key={i} size="sm" variant={i === index ? 'secondary' : 'ghost'} className="px-0 text-xs" aria-label={date.toLocaleDateString('en-KE',{month:'long',year:'numeric'})} aria-pressed={i === index} onClick={() => setMonth(date)}>{date.toLocaleDateString('en-KE',{month:'short'})}</Button>
+     return <Button key={i} size="sm" variant={i === index ? 'secondary' : 'ghost'} className="min-h-11 px-0 text-xs" aria-label={date.toLocaleDateString('en-KE',{month:'long',year:'numeric'})} aria-pressed={i === index} onClick={() => setMonth(date)}>{date.toLocaleDateString('en-KE',{month:'short'})}</Button>
     })}
    </div>
    <div className="grid grid-cols-7 gap-1 text-center">
@@ -53,7 +53,7 @@ export default function Dashboard({profile,termLabel,data,mean,attendanceRate,da
     <p className="mt-1 text-sm text-muted-foreground">{ROLES[profile.role]} workspace · {termLabel}</p>
    </div>
    <Panel title="Quick actions">
-    <section aria-label="School quick actions" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <section aria-label="School quick actions" className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
      {shortcuts.map(([label,Icon,action]) => (
       <Button key={label} variant="outline" className="justify-start px-2 text-left whitespace-normal sm:px-3" onClick={action}>
        <Icon size={17} className="text-primary" />{label}

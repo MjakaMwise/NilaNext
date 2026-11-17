@@ -24,10 +24,15 @@ async function submit(e){e.preventDefault();setBusy(true);setError('');setNotice
  }
 
  return (
-  <main className="grid min-h-svh place-items-center px-4 py-10">
-   <div className="grid w-full max-w-md gap-6">
-    <Brand />
-    <Card>
+  <main className="grid min-h-svh content-start md:grid-cols-2 md:content-stretch">
+   <section aria-label="Nilatext welcome" className="grid content-start gap-5 bg-[#193d70] px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 text-white sm:px-8 md:content-center md:gap-8 lg:px-14 xl:px-20">
+    <div className="[&_.text-muted-foreground]:text-blue-100 [&_.bg-primary]:bg-[#e7cc8c] [&_.text-primary-foreground]:text-[#193d70]"><Brand /></div>
+    <p className="max-w-lg text-[clamp(2rem,1.35rem+3vw,4.5rem)] leading-tight font-semibold tracking-tight">
+     Every learner.<br /><em className="font-normal text-[#e7cc8c]">A brighter next step.</em>
+    </p>
+   </section>
+   <div className="grid min-w-0 place-items-center px-4 py-6 sm:px-8 md:py-10">
+    <Card className="w-full max-w-md">
      <CardHeader className="flex-col gap-1">
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       <p className="text-sm text-muted-foreground">{recovery ? 'Enter a new password for your account.' : {

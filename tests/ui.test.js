@@ -103,4 +103,41 @@ test('teacher opens an elective roster, posts work and saves its scheduled regis
  await unmount()
 })
 
+test('mobile menu closes when navigating or pressing Escape', async () => {
+ await mount('teacher')
+ const menu = button('Menu')
+ assert.equal(menu.getAttribute('aria-expanded'), 'false')
+ await click(menu)
+ assert.equal(menu.getAttribute('aria-expanded'), 'true')
+ await click('Classes')
+ assert.equal(menu.getAttribute('aria-expanded'), 'false')
+ assert.equal(document.activeElement.tagName, 'MAIN')
+ await click(menu)
+ await act(async () => {
+  button('Classes').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Escape', bubbles:true }))
+ })
+ assert.equal(menu.getAttribute('aria-expanded'), 'false')
+ assert.equal(document.activeElement, menu)
+ await unmount()
+})
+
+test('workspace separators resize with the keyboard and enforce pane limits', async () => {
+ await mount('teacher')
+ const navigation = document.querySelector('[aria-label="Resize navigation pane"]')
+ const controls = document.querySelector('[aria-label="Resize term controls pane"]')
+ async function press(separator, key) {
+  await act(async () => {
+   separator.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key, bubbles:true, cancelable:true }))
+  })
+ }
+ await press(navigation,'ArrowRight')
+ assert.equal(navigation.getAttribute('aria-valuenow'),'248')
+ await press(controls,'ArrowLeft')
+ assert.equal(controls.getAttribute('aria-valuenow'),'256')
+ await press(controls,'Home')
+ await press(controls,'ArrowRight')
+ assert.equal(controls.getAttribute('aria-valuenow'),'208')
+ await unmount()
+})
+
 test.after(async()=>{await rm(folder,{recursive:true,force:true});dom.window.close()})
