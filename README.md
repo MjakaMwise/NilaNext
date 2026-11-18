@@ -54,6 +54,14 @@ The existing academic report cards use five learning areas. Averages use recorde
 
 Attendance starts unmarked. Saving writes only chosen statuses. Fee receipts record payments already received; no money transfer, M-Pesa integration, or online charging is included. Invoices are posted once per learner per term and are immutable; receipts are append-only. An accounting reversal/correction workflow is not included in this version.
 
+## Bulk record uploads
+
+Create levels and streams and define assessments per academic year and term under **School settings**. Under **Classes**, **Class templates** provides prefilled class and stream columns. Add names and existing admission numbers. Download as Excel or CSV, and upload **CSV UTF-8** after checking the preview.
+
+Under **People & access**, upload teachers by **TSC Number** and **Name**. Assign an imported teacher to a class before granting access. After verifying their email, choose **Review access** and approve the invitation. The assignment becomes visible to the teacher after they sign in and join.
+
+Under **Academic reports**, use **Upload results CSV** to choose year, term, assessment, class and stream, then subject. The template uses the curriculum subject roster. Assessment results appear as a breakdown in the learner report. Existing report-card marks remain separate. Under **Fees**, use **Upload payments CSV** to choose year and term and download the roster of invoiced learners. Enter a unique receipt reference and amount for each payment already received.
+
 ## Curriculum, timetables and assignments
 
 - Under **Curriculum**, create departments and subjects, then add each subject to a class for the selected term. Choose a subject teacher and either **Whole class** or **Elective**. Open the elective roster to enrol learners. The class teacher appointment is managed separately under **Classes**.
@@ -76,7 +84,7 @@ The base schema, access hardening and academic migration have been applied to th
 
 For a different fresh project:
 
-1. Apply `supabase/schema.sql`, `supabase/access-hardening.sql`, `supabase/academics.sql`, then `supabase/academics-indexes.sql` using the Supabase SQL editor or your migration tooling.
+1. Apply `supabase/schema.sql`, `supabase/access-hardening.sql`, `supabase/academics.sql`, `supabase/academics-indexes.sql`, `supabase/teacher-roster.sql`, then `supabase/school-record-setup.sql` using the Supabase SQL editor or your migration tooling.
 2. Copy `.env.example` to `.env.local` and enter the new project's URL and publishable key.
 3. Configure email URLs as above and restart Vite.
 

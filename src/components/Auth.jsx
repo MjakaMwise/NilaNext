@@ -146,7 +146,7 @@ export default function Auth({ recovery, initialMode = 'login', onRecoveryDone }
  return (
   <main className="grid min-h-svh place-items-center bg-[#ebf1e5] p-3 sm:p-6">
    <div className="grid w-full max-w-6xl gap-3 rounded-[2rem] bg-[#dce8d4] p-2.5 sm:p-3 md:grid-cols-[1.08fr_1fr]">
-    <Card className={`${mobileSignIn || recovery ? 'grid' : 'hidden md:grid'} min-w-0 content-center gap-6 rounded-[1.5rem] border-0 bg-[#fffefa] py-9 shadow-none [--accent:#e8f0e0] [--input:#bac9b6] [--primary:#275538] [--ring:#47734f] sm:py-12 md:col-start-2 md:row-start-1`}>
+    <Card className={`${mobileSignIn || recovery ? 'grid' : 'hidden md:grid'} min-w-0 content-center gap-6 rounded-[1.5rem] border-0 bg-card py-9 shadow-none sm:py-12 md:col-start-2 md:row-start-1`}>
      <div className="mx-auto w-full max-w-sm px-5 sm:px-7">
       <a href="/" className="inline-block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4" aria-label="Back to Nilatext home"><Brand /></a>
      </div>

@@ -53,15 +53,15 @@ function ResizeHandle({ pane, label, side, size, onResize, className }) {
   )
 }
 
-export function ResizableWorkspace({ navigation, workspace, children }) {
+export function ResizableWorkspace({ navigation, navigationCollapsed = false, workspace, children }) {
   const [leftWidth, setLeftWidth] = useState(paneSizes.navigation.initial)
   const [rightWidth, setRightWidth] = useState(paneSizes.workspace.initial)
 
   return (
-    <div className="portal-workspace min-h-svh" style={{ '--navigation-width': `${leftWidth}px`, '--workspace-width': `${rightWidth}px` }}>
+    <div className="portal-workspace min-h-svh" style={{ '--navigation-width': navigationCollapsed ? '72px' : `${leftWidth}px`, '--workspace-width': `${rightWidth}px` }}>
       {navigation}
-      <ResizeHandle pane="navigation" label="Resize navigation pane" side="left" size={leftWidth}
-        onResize={setLeftWidth} className="navigation-divider hidden lg:block" />
+      {!navigationCollapsed && <ResizeHandle pane="navigation" label="Resize navigation pane" side="left" size={leftWidth}
+        onResize={setLeftWidth} className="navigation-divider hidden lg:block" />}
       {workspace}
       {children}
       <ResizeHandle pane="workspace" label="Resize term controls pane" side="right" size={rightWidth}

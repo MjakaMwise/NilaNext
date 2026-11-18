@@ -1,5 +1,5 @@
 import React,{useEffect,useState,useCallback,useRef} from 'react'
-import {LayoutDashboard,Users,BookOpen,FileText,CalendarCheck,Wallet,ShieldCheck,Settings,LogOut,RefreshCw,Plus,GraduationCap,ArrowUpRight,Download,Printer,Search,ChevronRight,CheckCircle2,AlertCircle,Menu,X} from 'lucide-react'
+import {LayoutDashboard,Users,BookOpen,FileText,CalendarCheck,Wallet,ShieldCheck,Settings,LogOut,RefreshCw,Plus,GraduationCap,ArrowUpRight,Download,Printer,Search,ChevronRight,CheckCircle2,AlertCircle,Menu,X,PanelLeftClose,PanelLeftOpen} from 'lucide-react'
 import {supabase,configured} from './lib/supabase'
 import {allRows,unwrap,addRow,editRow} from './lib/api'
 import {ROLES,SUBJECTS,money,localDate,average,progress,balance,validPayment,downloadCSV,permittedPages,friendlyError} from './lib/domain'
@@ -9,10 +9,15 @@ import {ResizableWorkspace} from './components/ui/resizable'
 import {AlertBox,Badge} from './components/ui/feedback'
 import {Input,NativeSelect,Textarea} from './components/ui/form-controls'
 import Dashboard from './components/Dashboard'
+import SchoolRecords, { AssessmentReport, AssessmentSetup } from './components/SchoolRecords'
+import RecordImport from './components/RecordImport'
 import ProductPage from './components/ProductPage'
+import { LoadingState } from './components/LoadingState'
+import { NilatextMark } from './components/NilatextMark'
+import { Skeleton } from './components/ui/skeleton'
 import Academics from './components/Academics'
 import {Brand,Heading,Panel,Stat,Empty,Table,Pill,Modal,Field,Actions,Alert} from './components/UI'
-const emptyData={classes:[],students:[],marks:[],attendance:[],invoices:[],payments:[],profiles:[],invites:[],links:[],notes:[]}
+const emptyData={classes:[],students:[],marks:[],attendance:[],invoices:[],payments:[],profiles:[],invites:[],links:[],notes:[],teacherRoster:[]}
 const navIcons=[LayoutDashboard,Users,BookOpen,FileText,CalendarCheck,Wallet,ShieldCheck,Settings]
 const academicPages=['Curriculum','My teaching','Timetable','Lesson attendance','Assignments']
 const academicIcons=[BookOpen,Users,CalendarCheck,CalendarCheck,FileText]
@@ -20,12 +25,22 @@ const navNames=['Overview','Students','Classes','Academic reports','Attendance',
 export default function App(){
  const [session,setSession]=useState(null),[authReady,setAuthReady]=useState(!configured),[recovery,setRecovery]=useState(false),[profile,setProfile]=useState(null),[school,setSchool]=useState(null),[terms,setTerms]=useState([]),[termId,setTermId]=useState(''),[day,setDay]=useState(localDate()),[data,setData]=useState(emptyData),[page,setPage]=useState('Overview'),[loading,setLoading]=useState(false),[initializing,setInitializing]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState(''),[modal,setModal]=useState(null),[search,setSearch]=useState(''),[classFilter,setClassFilter]=useState(''),[attendanceDraft,setAttendanceDraft]=useState({}),[saving,setSaving]=useState(false)
  const [menuOpen,setMenuOpen]=useState(false)
+ const [navigationCollapsed, setNavigationCollapsed] = useState(false)
+ const [wideWorkspace, setWideWorkspace] = useState(() => window.matchMedia?.('(min-width: 80rem)')?.matches ?? false)
+ useEffect(() => {
+  const media = window.matchMedia?.('(min-width: 80rem)')
+  if (!media) return
+  const sync = () => setWideWorkspace(media.matches)
+  sync()
+  media.addEventListener('change', sync)
+  return () => media.removeEventListener('change', sync)
+ }, [])
  const menuButton=useRef(null), pageContent=useRef(null)
  const loadVersion=useRef(0),initVersion=useRef(0)
  useEffect(()=>{if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange((event,s)=>{setSession(s);if(event==='PASSWORD_RECOVERY')setRecovery(true);setAuthReady(true);if(!s){setProfile(null);setSchool(null);setData(emptyData);setTerms([]);setTermId('');setModal(null);setPage('Overview');setMenuOpen(false);setError('');initVersion.current++;loadVersion.current++}});return()=>subscription.unsubscribe()},[])
  const initialize=useCallback(async()=>{if(!session)return;const version=++initVersion.current;setInitializing(true);setError('');try{const p=await unwrap(supabase.from('nt_profiles').select('*').eq('user_id',session.user.id).maybeSingle());if(version!==initVersion.current)return;setProfile(p);if(p){const [s,ts]=await Promise.all([unwrap(supabase.from('nt_schools').select('*').eq('id',p.school_id).single()),allRows('nt_terms',p.school_id)]);if(version!==initVersion.current)return;setSchool(s);ts.sort((a,b)=>b.year-a.year||a.number-b.number);setTerms(ts);setTermId(current=>ts.some(t=>t.id===current)?current:ts[0]?.id||'')}}catch(e){if(version===initVersion.current)setError(friendlyError(e))}finally{if(version===initVersion.current)setInitializing(false)}},[session?.user.id])
  useEffect(()=>{initialize()},[initialize])
- const load=useCallback(async()=>{if(!profile||!termId)return;const version=++loadVersion.current;setLoading(true);setError('');try{const sid=profile.school_id,admin=profile.role==='admin',staff=['admin','teacher'].includes(profile.role);const values=await Promise.all([allRows('nt_classes',sid),allRows('nt_students',sid),allRows('nt_marks',sid,{term_id:termId}),allRows('nt_attendance',sid,{day}),allRows('nt_invoices',sid,{term_id:termId}),allRows('nt_payments',sid),admin?allRows('nt_profiles',sid):Promise.resolve([]),admin?allRows('nt_invites',sid):Promise.resolve([]),admin?allRows('nt_student_links',sid):Promise.resolve([]),staff?unwrap(supabase.from('nt_notes').select('*').eq('school_id',sid).order('created_at',{ascending:false}).limit(10)):Promise.resolve([])]);if(version!==loadVersion.current)return;const next=Object.fromEntries(Object.keys(emptyData).map((k,i)=>[k,values[i]]));setData(next);setAttendanceDraft(Object.fromEntries(next.attendance.map(a=>[a.student_id,a.status])))}catch(e){if(version===loadVersion.current){setData(emptyData);setError(friendlyError(e))}}finally{if(version===loadVersion.current)setLoading(false)}},[profile,termId,day])
+ const load=useCallback(async()=>{if(!profile||!termId)return;const version=++loadVersion.current;setLoading(true);setError('');try{const sid=profile.school_id,admin=profile.role==='admin',staff=['admin','teacher'].includes(profile.role);const values=await Promise.all([allRows('nt_classes',sid),allRows('nt_students',sid),allRows('nt_marks',sid,{term_id:termId}),allRows('nt_attendance',sid,{day}),allRows('nt_invoices',sid,{term_id:termId}),allRows('nt_payments',sid),admin?allRows('nt_profiles',sid):Promise.resolve([]),admin?allRows('nt_invites',sid):Promise.resolve([]),admin?allRows('nt_student_links',sid):Promise.resolve([]),staff?unwrap(supabase.from('nt_notes').select('*').eq('school_id',sid).order('created_at',{ascending:false}).limit(10)):Promise.resolve([]),admin?allRows('nt_teacher_roster',sid):Promise.resolve([])]);if(version!==loadVersion.current)return;const next=Object.fromEntries(Object.keys(emptyData).map((k,i)=>[k,values[i]]));setData(next);setAttendanceDraft(Object.fromEntries(next.attendance.map(a=>[a.student_id,a.status])))}catch(e){if(version===loadVersion.current){setData(emptyData);setError(friendlyError(e))}}finally{if(version===loadVersion.current)setLoading(false)}},[profile,termId,day])
  useEffect(()=>{load()},[load])
  useEffect(() => {
   if (!toast) return
@@ -55,7 +70,25 @@ export default function App(){
   setMenuOpen(false);setPage(p);setSearch('');setClassFilter('');setModal(null)
  }
  async function mutate(fn,message){setSaving(true);try{await fn();setModal(null);setToast(message);await load();return true}catch(e){setError(friendlyError(e));return false}finally{setSaving(false)}}
- if(!authReady||initializing)return <div className="grid min-h-svh place-content-center gap-4 p-6 text-muted-foreground"><Brand/><p>Opening your school workspace…</p></div>
+ if(!authReady||initializing)return (
+  <div className="portal-workspace min-h-svh">
+   <div className="portal-sidebar border-b bg-card px-4 py-3 lg:rounded-xl lg:border lg:py-4">
+    <Brand />
+    <div className="mt-6 hidden space-y-2 lg:block">
+     {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-11" />)}
+    </div>
+   </div>
+   <div className="portal-tools border-b bg-card px-4 py-3 xl:rounded-xl xl:border">
+    <Skeleton className="h-11 w-40 max-w-full" />
+   </div>
+   <main className="portal-content min-h-0 min-w-0 lg:overflow-hidden lg:rounded-xl lg:border lg:bg-card">
+    <div aria-hidden="true" className="border-b px-4 py-3 sm:px-7"><Skeleton className="h-5 w-36" /></div>
+    <div className="mx-auto max-w-[90rem] px-4 py-6 sm:px-7 lg:py-8">
+     <LoadingState page="Overview" role={profile?.role} label="Opening your school workspace…" />
+    </div>
+   </main>
+  </div>
+ )
  if(!session || recovery) {
   const search = new URLSearchParams(location.search)
   const view = search.get('view')
@@ -72,30 +105,118 @@ export default function App(){
  const learnerTable=(students,actions=true)=><Table headers={['Learner','Class','Average','Progress',...(actions?['Report']:[])]} empty={!students.length}>{students.map(s=>{const ms=marksFor(s.id),a=average(ms);return <tr key={s.id}><td><Button variant="ghost" className="h-auto justify-start px-1 text-left [&_small]:block [&_small]:text-muted-foreground" onClick={()=>setModal({type:'report',student:s})}><span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-primary">{s.full_name.split(' ').map(x=>x[0]).slice(0,2).join('')}</span><span><b>{s.full_name}</b><small>{s.admission_no}{!s.active?' · Inactive':''}</small></span></Button></td><td>{className(s.class_id)}</td><td><b>{a===null?'—':a+'%'}</b><small className="block text-muted-foreground">{ms.length}/{SUBJECTS.length} subjects</small></td><td><Pill tone={a===null?'neutral':a<65?'amber':''}>{progress(a)}</Pill></td>{actions&&<td><div className="flex flex-wrap items-center gap-1"><Button variant="ghost" size="sm" className="text-primary" onClick={()=>setModal({type:'report',student:s})}>Preview <ChevronRight size={14}/></Button>{admin&&selected==='Students'&&<Button variant="ghost" size="sm" className="text-primary" onClick={()=>setModal({type:'student',student:s})}>Edit</Button>}</div></td>}</tr>})}</Table>;
  const totalBilled=data.invoices.reduce((a,i)=>a+Number(i.amount),0),outstanding=data.invoices.reduce((a,i)=>a+balance(i,data.payments),0);
  function exportReport(){downloadCSV('nilatext-academic-report.csv',[['School',school.name],['Term',termLabel],['Admission no','Learner','Class',...SUBJECTS,'Average','Subjects assessed'],...filtered.map(s=>{let ms=marksFor(s.id);return [s.admission_no,s.full_name,className(s.class_id),...SUBJECTS.map(sub=>ms.find(m=>m.subject===sub)?.score??''),average(ms)??'',ms.length]})])}
+ const schoolStaff = data.profiles.filter(person => person.role === 'admin' || person.role === 'teacher')
+ function exportStudents() {
+  downloadCSV('nilatext-students.csv', [
+   ['Admission no', 'Learner', 'Class', 'Enrolment'],
+   ...filtered.map(student => [student.admission_no, student.full_name, className(student.class_id), student.active ? 'Active' : 'Inactive']),
+  ])
+ }
+ function exportStaff() {
+  downloadCSV('nilatext-staff.csv', [
+   ['Name', 'Email', 'Role', 'Assigned classes'],
+   ...schoolStaff.map(person => [person.display_name, person.email, ROLES[person.role], data.classes.filter(group => group.teacher_id === person.user_id).map(group => group.name).join(', ')]),
+  ])
+ }
  let content;
  if(academicPages.includes(selected))content=<Academics key={selected+termId} page={selected} profile={profile} termId={termId} data={data} refreshVersion={data}/>;
  if(selected==='Overview')content=<Dashboard profile={profile} termLabel={termLabel} data={data} mean={mean} attendanceRate={attendanceRate} day={day} needSupport={needSupport} navigate={navigate} setModal={setModal} setDay={setDay} learnerTable={learnerTable}/>;
- if(selected==='Students')content=<><Heading title="Students" subtitle="Manage enrolment and follow each learning journey.">{admin&&<Button onClick={()=>setModal({type:'student'})}><Plus size={16}/> Add student</Button>}</Heading><Panel>{filters}{learnerTable(filtered)}</Panel></>;
- if(selected==='Classes')content=<><Heading title="Classes" subtitle="Create classes and assign registered teachers.">{admin&&<Button onClick={()=>setModal({type:'class'})}><Plus size={16}/> Add class</Button>}</Heading><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{data.classes.filter(c=>admin||c.teacher_id===profile.user_id).map(c=>{const ss=data.students.filter(s=>s.class_id===c.id);return <Panel key={c.id} title={c.name} subtitle={`${ss.length} learners`}><div className="grid size-12 place-items-center rounded-lg bg-accent text-primary"><BookOpen size={30}/></div><p className="text-muted-foreground">{admin?(data.profiles.find(p=>p.user_id===c.teacher_id)?.display_name||'Teacher not assigned'):'Your assigned class'}</p><div className="flex flex-wrap items-center gap-2"><Button variant="outline" onClick={()=>{navigate('Students');setClassFilter(c.id)}}>View learners <ArrowUpRight size={15}/></Button>{admin&&<Button variant="ghost" size="sm" className="text-primary" onClick={()=>setModal({type:'class',class:c})}>Edit class</Button>}</div></Panel>})}</div>{!data.classes.length&&<Panel><Empty title="Your first class starts here">Use Add class to create a class before enrolling learners.</Empty></Panel>}</>;
- if(selected==='Academic reports')content=<><Heading title="Academic reports" subtitle="Subject results and report cards for the selected term."><Button variant="outline" onClick={exportReport} disabled={!filtered.length}><Download size={16}/> Export CSV</Button></Heading><AlertBox>Report bands are illustrative. Averages use recorded subjects. Incomplete reports show their subject count.</AlertBox><Panel title="Learner reports" subtitle={termLabel}>{filters}{learnerTable(filtered)}</Panel></>;
+ if(selected==='Students')content=<><Heading title="Students" subtitle="Manage enrolment and follow each learning journey."><Button variant="outline" disabled={!filtered.length} onClick={exportStudents}><Download size={16}/> Export students CSV</Button>{admin&&<><Button variant="outline" onClick={()=>setModal({type:'school-records',kind:'class-roster'})}>Upload students CSV</Button><Button onClick={()=>setModal({type:'student'})}><Plus size={16}/> Add student</Button></>}</Heading><Panel>{filters}{learnerTable(filtered)}</Panel></>;
+ if(selected==='Classes')content=<><Heading title="Classes" subtitle="Create classes and assign registered teachers.">{admin&&<Button onClick={()=>setModal({type:'class'})}><Plus size={16}/> Add class</Button>}</Heading><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{data.classes.filter(c=>admin||c.teacher_id===profile.user_id).map(c=>{const ss=data.students.filter(s=>s.class_id===c.id);return <Panel key={c.id} title={c.name} subtitle={`${ss.length} learners`}><div className="grid size-12 place-items-center rounded-lg bg-accent text-primary"><BookOpen size={30}/></div><p className="text-muted-foreground">{admin?(data.profiles.find(p=>p.user_id===c.teacher_id)?.display_name||data.teacherRoster.find(p=>p.id===c.teacher_roster_id)?.full_name||'Teacher not assigned'):'Your assigned class'}</p><div className="flex flex-wrap items-center gap-2"><Button variant="outline" onClick={()=>{navigate('Students');setClassFilter(c.id)}}>View learners <ArrowUpRight size={15}/></Button>{admin&&<Button variant="outline" onClick={()=>setModal({type:'school-records',kind:'class-roster',class:c})}>Class templates</Button>}{admin&&<Button variant="ghost" size="sm" className="text-primary" onClick={()=>setModal({type:'class',class:c})}>Edit class</Button>}</div></Panel>})}</div>{!data.classes.length&&<Panel><Empty title="Your first class starts here">Use Add class to create a class before enrolling learners.</Empty></Panel>}</>;
+ if(selected==='Academic reports')content=<><Heading title="Academic reports" subtitle="Subject results and report cards for the selected term.">{staff&&<Button variant="outline" disabled={!term} onClick={()=>setModal({type:'school-records',kind:'assessment-results'})}>Upload results CSV</Button>}{staff&&<Button variant="ghost" disabled={!term} onClick={()=>setModal({type:'import',kind:'results'})}>Upload report card marks CSV</Button>}<Button variant="outline" onClick={exportReport} disabled={!filtered.length}><Download size={16}/> Export CSV</Button></Heading><AlertBox>Report bands are illustrative. Averages use recorded subjects. Incomplete reports show their subject count.</AlertBox><Panel title="Learner reports" subtitle={termLabel}>{filters}{learnerTable(filtered)}</Panel></>;
  if(selected==='Attendance')content=<><Heading title="Attendance" subtitle={staff?'Mark your active learners and save the register.':'View the saved register for your linked learners.'}>{staff&&<Button disabled={saving||!active.length||!day} onClick={()=>mutate(async()=>{const rows=active.filter(s=>attendanceDraft[s.id]).map(s=>({school_id:profile.school_id,student_id:s.id,day,status:attendanceDraft[s.id]}));if(!rows.length)throw new Error('Mark at least one learner before saving.');await unwrap(supabase.from('nt_attendance').upsert(rows,{onConflict:'student_id,day'}))},'Attendance saved')}><CheckCircle2 size={16}/> {saving?'Saving…':'Save register'}</Button>}</Heading><Panel><div className="flex flex-wrap items-end gap-3"><Field label="Register date"><Input type="date" aria-label="Register date" value={day} onChange={e=>{if(e.target.value)setDay(e.target.value)}} required/></Field>{staff&&<Button variant="outline" onClick={()=>setAttendanceDraft(Object.fromEntries(active.map(s=>[s.id,'Present'])))} disabled={!active.length}>Mark all present</Button>}<span className="text-sm text-muted-foreground">{Object.keys(attendanceDraft).filter(id=>active.some(s=>s.id===id)).length}/{active.length} marked</span></div><Table headers={['Learner','Class','Status']} empty={!active.length}>{active.map(s=><tr key={s.id}><td><b>{s.full_name}</b><small className="block text-muted-foreground">{s.admission_no}</small></td><td>{className(s.class_id)}</td><td>{staff?<NativeSelect aria-label={`Attendance for ${s.full_name}`} value={attendanceDraft[s.id]||''} onChange={e=>setAttendanceDraft({...attendanceDraft,[s.id]:e.target.value})}><option value="" disabled>Not marked</option>{['Present','Absent','Late'].map(v=><option key={v}>{v}</option>)}</NativeSelect>:<Pill tone="neutral">{attendanceDraft[s.id]||'Not marked'}</Pill>}</td></tr>)}</Table></Panel></>;
- if(selected==='Fees')content=<><Heading title="Fees" subtitle="Invoices and recorded receipts. Payments here are bookkeeping entries; no money is transferred.">{admin&&<Button onClick={()=>setModal({type:'invoice'})}><Plus size={16}/> Create invoice</Button>}</Heading><div className="grid gap-4 sm:grid-cols-3"><Stat label="Term invoiced" value={money(totalBilled)} detail={termLabel} icon={FileText}/><Stat label="Recorded payments" value={money(totalBilled-outstanding)} detail="Receipts against this term’s invoices" icon={Wallet}/><Stat label="Outstanding" value={money(outstanding)} detail={`${data.invoices.length} invoices`} icon={AlertCircle}/></div><Panel title="Term invoices" action={<Button variant="ghost" size="sm" className="text-primary" disabled={!data.invoices.length} onClick={()=>downloadCSV('nilatext-fees.csv',[['Invoice','Learner','Billed KES','Paid KES','Balance KES'],...data.invoices.map(i=>[i.id,data.students.find(s=>s.id===i.student_id)?.full_name||'',i.amount,Number(i.amount)-balance(i,data.payments),balance(i,data.payments)])])}><Download size={15}/> Export CSV</Button>}><Table headers={['Learner','Invoice','Billed','Balance','Action']} empty={!data.invoices.length}>{data.invoices.map(i=><tr key={i.id}><td><b>{data.students.find(s=>s.id===i.student_id)?.full_name}</b></td><td>{i.description}</td><td>{money(i.amount)}</td><td><Pill tone={balance(i,data.payments)>0?'amber':''}>{money(balance(i,data.payments))}</Pill></td><td><div className="flex flex-wrap items-center gap-1"><Button variant="ghost" size="sm" className="text-primary" onClick={()=>setModal({type:'ledger',invoice:i})}>Receipts</Button>{admin&&balance(i,data.payments)>0&&<Button variant="outline" size="sm" onClick={()=>setModal({type:'payment',invoice:i,requestId:crypto.randomUUID()})}>Record payment</Button>}</div></td></tr>)}</Table></Panel></>;
- if(selected==='People & access')content=<><Heading title="People & access" subtitle="Approve email addresses before inviting people to register."><Button onClick={()=>setModal({type:'invite'})}><Plus size={16}/> Approve access</Button></Heading><AlertBox>Share the portal address with approved members. They can register with their approved email and choose “Join my school”.</AlertBox><Panel title="School members"><Table headers={['Name','Email','Role','Access']} empty={!data.profiles.length}>{data.profiles.map(p=><tr key={p.user_id}><td>{p.display_name}</td><td>{p.email}</td><td><Pill tone="neutral">{ROLES[p.role]}</Pill></td><td>{p.role!=='admin'&&<Button variant="ghost" size="sm" className="text-destructive" onClick={()=>setModal({type:'revoke',member:p})}>Revoke access</Button>}</td></tr>)}</Table></Panel><Panel title="Access approvals"><Table headers={['Email','Role','Linked learner','Status','Action']} empty={!data.invites.length}>{data.invites.map(i=><tr key={i.id}><td>{i.email}</td><td>{ROLES[i.role]}</td><td>{data.students.find(s=>s.id===i.student_id)?.full_name||'—'}</td><td><Pill tone={i.accepted_at?'':'amber'}>{i.accepted_at?'Joined':'Pending'}</Pill></td><td>{!i.accepted_at&&<Button variant="ghost" size="sm" className="text-destructive" onClick={()=>setModal({type:'cancelInvite',invite:i})}>Cancel approval</Button>}</td></tr>)}</Table></Panel><Panel title="Link another learner" subtitle="Parents can follow more than one learner. Choose an existing parent or student account."><InlineLink profiles={data.profiles} students={data.students} links={data.links} saving={saving} onSave={v=>mutate(()=>addRow('nt_student_links',{school_id:profile.school_id,...v}),'Learner linked')}/></Panel></>;
- if(selected==='School settings')content=<><Heading title="School settings" subtitle="School identity and academic terms."/><Panel title="School details"><form className="grid max-w-md justify-items-start gap-4 [&>label]:w-full" onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();mutate(async()=>{const s=await editRow('nt_schools',school.id,{name});setSchool(s)},'School updated')}}><Field label="School name" name="name" defaultValue={school?.name} minLength={2} maxLength={120} required/><Button disabled={saving}>Save school details</Button></form></Panel><Panel title="Academic terms" action={<Button variant="outline" onClick={()=>setModal({type:'term'})}><Plus size={16}/> Add term</Button>}><Table headers={['Year','Term']} empty={!terms.length}>{terms.map(t=><tr key={t.id}><td>{t.year}</td><td>Term {t.number}</td></tr>)}</Table></Panel><Panel title="Connected workspace"><p className="text-muted-foreground">School records are stored in Supabase. Access is checked in the database on every request. This application uses the project’s publishable key.</p><p className="text-sm text-muted-foreground">Signed in as {session.user.email}. Your role is {ROLES[profile.role]}.</p></Panel></>;
+ if(selected==='Fees')content=<><Heading title="Fees" subtitle="Invoices and recorded receipts. Payments here are bookkeeping entries; no money is transferred.">{admin&&<>
+ <Button disabled={!term} onClick={()=>setModal({type:'invoice'})}><Plus size={16}/> Create invoice</Button>
+ <Button variant="outline" disabled={!term} onClick={()=>setModal({type:'import',kind:'invoices'})}>Upload invoices CSV</Button>
+ <Button variant="outline" disabled={!term} onClick={()=>setModal({type:'school-records',kind:'term-payments'})}>Upload payments CSV</Button>
+ </>}</Heading><div className="grid gap-4 sm:grid-cols-3"><Stat label="Term invoiced" value={money(totalBilled)} detail={termLabel} icon={FileText}/><Stat label="Recorded payments" value={money(totalBilled-outstanding)} detail="Receipts against this term’s invoices" icon={Wallet}/><Stat label="Outstanding" value={money(outstanding)} detail={`${data.invoices.length} invoices`} icon={AlertCircle}/></div><Panel title="Term invoices" action={<Button variant="ghost" size="sm" className="text-primary" disabled={!data.invoices.length} onClick={()=>downloadCSV('nilatext-fees.csv',[['Invoice','Learner','Billed KES','Paid KES','Balance KES'],...data.invoices.map(i=>[i.id,data.students.find(s=>s.id===i.student_id)?.full_name||'',i.amount,Number(i.amount)-balance(i,data.payments),balance(i,data.payments)])])}><Download size={15}/> Export CSV</Button>}><Table headers={['Learner','Invoice','Billed','Balance','Action']} empty={!data.invoices.length}>{data.invoices.map(i=><tr key={i.id}><td><b>{data.students.find(s=>s.id===i.student_id)?.full_name}</b></td><td>{i.description}</td><td>{money(i.amount)}</td><td><Pill tone={balance(i,data.payments)>0?'amber':''}>{money(balance(i,data.payments))}</Pill></td><td><div className="flex flex-wrap items-center gap-1"><Button variant="ghost" size="sm" className="text-primary" onClick={()=>setModal({type:'ledger',invoice:i})}>Receipts</Button>{admin&&balance(i,data.payments)>0&&<Button variant="outline" size="sm" onClick={()=>setModal({type:'payment',invoice:i,requestId:crypto.randomUUID()})}>Record payment</Button>}</div></td></tr>)}</Table></Panel></>;
+ if(selected==='People & access')content=<><Heading title="People & access" subtitle="Approve email addresses before inviting people to register."><Button variant="outline" onClick={()=>setModal({type:'import',kind:'teachers'})}>Upload teachers CSV</Button><Button onClick={()=>setModal({type:'invite'})}><Plus size={16}/> Approve access</Button></Heading><AlertBox>Share the portal address with approved members. They can register with their approved email and choose “Join my school”.</AlertBox><Panel title="Teacher roster" subtitle="Verify each imported email before approving access.">
+ <Table headers={['Teacher','TSC Number','Email','Portal access','Action']} empty={!data.teacherRoster.length}>
+  {data.teacherRoster.map(teacher => {
+   const invitation = data.invites.find(invite => invite.teacher_roster_id === teacher.id || (teacher.email && invite.email === teacher.email))
+   const email = invitation?.email ?? teacher.email
+   const member = data.profiles.find(person => person.email.toLowerCase() === email)
+   return <tr key={teacher.id}>
+    <td>{teacher.full_name}</td><td>{teacher.tsc_no || '—'}</td><td className="wrap-anywhere">{email || '—'}</td>
+    <td><Pill tone={!member && !invitation ? 'amber' : 'neutral'}>{member ? 'School member' : invitation ? 'Approved' : 'Needs review'}</Pill></td>
+    <td>{!member && !invitation && <Button variant="outline" size="sm" onClick={() => setModal({type:'invite', teacher})}>Review access</Button>}</td>
+   </tr>
+  })}
+ </Table>
+ </Panel><Panel title="School members" action={<Button variant="outline" size="sm" disabled={!schoolStaff.length} onClick={exportStaff}><Download size={16}/> Export staff CSV</Button>}><Table headers={['Name','Email','Role','Access']} empty={!data.profiles.length}>{data.profiles.map(p=><tr key={p.user_id}><td>{p.display_name}</td><td>{p.email}</td><td><Pill tone="neutral">{ROLES[p.role]}</Pill></td><td>{p.role!=='admin'&&<Button variant="ghost" size="sm" className="text-destructive" onClick={()=>setModal({type:'revoke',member:p})}>Revoke access</Button>}</td></tr>)}</Table></Panel><Panel title="Access approvals"><Table headers={['Email','Role','Linked learner','Status','Action']} empty={!data.invites.length}>{data.invites.map(i=><tr key={i.id}><td>{i.email}</td><td>{ROLES[i.role]}</td><td>{data.students.find(s=>s.id===i.student_id)?.full_name||'—'}</td><td><Pill tone={i.accepted_at?'':'amber'}>{i.accepted_at?'Joined':'Pending'}</Pill></td><td>{!i.accepted_at&&<Button variant="ghost" size="sm" className="text-destructive" onClick={()=>setModal({type:'cancelInvite',invite:i})}>Cancel approval</Button>}</td></tr>)}</Table></Panel><Panel title="Link another learner" subtitle="Parents can follow more than one learner. Choose an existing parent or student account."><InlineLink profiles={data.profiles} students={data.students} links={data.links} saving={saving} onSave={v=>mutate(()=>addRow('nt_student_links',{school_id:profile.school_id,...v}),'Learner linked')}/></Panel></>;
+ if(selected==='School settings')content=<><Heading title="School settings" subtitle="School identity and academic terms."/><Panel title="School details"><form className="grid max-w-md justify-items-start gap-4 [&>label]:w-full" onSubmit={e=>{e.preventDefault();const name=new FormData(e.currentTarget).get('name').trim();mutate(async()=>{const s=await editRow('nt_schools',school.id,{name});setSchool(s)},'School updated')}}><Field label="School name" name="name" defaultValue={school?.name} minLength={2} maxLength={120} required/><Button disabled={saving}>Save school details</Button></form></Panel><Panel title="Academic terms" action={<Button variant="outline" onClick={()=>setModal({type:'term'})}><Plus size={16}/> Add term</Button>}><Table headers={['Year','Term']} empty={!terms.length}>{terms.map(t=><tr key={t.id}><td>{t.year}</td><td>Term {t.number}</td></tr>)}</Table></Panel><Panel title="Levels & streams" subtitle="Create each class and stream before importing its learners." action={<Button variant="outline" onClick={()=>setModal({type:'class'})}>Add level and stream</Button>}>
+  <Table headers={['Class','Stream','Action']} empty={!data.classes.length}>{data.classes.map(group => <tr key={group.id}><td>{group.level || group.name}</td><td>{group.stream || '—'}</td><td><Button variant="ghost" size="sm" onClick={()=>setModal({type:'class',class:group})}>Edit</Button></td></tr>)}</Table>
+ </Panel><AssessmentSetup key={term?.id ?? ''} schoolId={profile.school_id} terms={terms} currentTerm={term} /><Panel title="Connected workspace"><p className="text-muted-foreground">School records are stored in Supabase. Access is checked in the database on every request. This application uses the project’s publishable key.</p><p className="text-sm text-muted-foreground">Signed in as {session.user.email}. Your role is {ROLES[profile.role]}.</p></Panel></>;
+ const detailInSidebar = wideWorkspace && (modal?.type === 'report' || modal?.type === 'ledger')
+ const rosterImport = modal?.kind === 'students' || modal?.kind === 'teachers'
+ const importAllowed = modal?.type === 'import' && (rosterImport || term) && (modal.kind === 'results' ? staff : admin)
+ const importView = importAllowed && <RecordImport key={modal.kind + (term?.id ?? '')} kind={modal.kind} termLabel={rosterImport ? undefined : termLabel}
+  context={{ schoolId: profile.school_id, termId: term?.id, students: data.students, invoices: data.invoices, payments: data.payments, classes: data.classes, teachers: data.teacherRoster }}
+  onClose={closeModal} saving={saving} onSave={(spec, rows, onError) => mutate(async () => {
+   try {
+    const table = supabase.from(spec.table)
+    const payload = spec.table === 'nt_payments' ? [...rows].sort((a, b) => a.invoice_id.localeCompare(b.invoice_id)) : rows
+    await unwrap(spec.conflict ? table.upsert(payload, { onConflict: spec.conflict }) : table.insert(payload))
+   } catch (error) {
+    onError(error)
+    throw error
+   }
+  }, `${rows.length} ${rows.length === 1 ? 'record' : 'records'} imported`)} />
+ const schoolRecordsKind = modal?.type === 'school-records' ? modal.kind : null
+ const schoolRecordOptions = {
+  'class-roster': { table: 'nt_students' },
+  'assessment-results': { table: 'nt_assessment_results', conflict: 'assessment_id,offering_id,student_id' },
+  'term-payments': { table: 'nt_payments' },
+ }
+ const schoolRecords = schoolRecordsKind && (schoolRecordsKind === 'assessment-results' ? staff : admin) &&
+  <SchoolRecords key={schoolRecordsKind} kind={schoolRecordsKind} initialGroup={modal.class} schoolId={profile.school_id}
+   terms={terms} currentTerm={term} data={data} saving={saving} onClose={closeModal}
+   onSave={(rows, onError) => mutate(async () => {
+    const { table, conflict } = schoolRecordOptions[schoolRecordsKind]
+    const query = supabase.from(table)
+    try {
+     if (table === 'nt_payments') rows.sort((a, b) => a.invoice_id.localeCompare(b.invoice_id))
+     await unwrap(conflict ? query.upsert(rows, { onConflict: conflict }) : query.insert(rows))
+    } catch (error) {
+     onError(error)
+     throw error
+    }
+   }, `${rows.length} ${rows.length === 1 ? 'record' : 'records'} imported`)} />
+ const modalView = schoolRecordsKind ? schoolRecords : modal?.type === 'import' ? importView : modal && <SchoolModal modal={modal} close={closeModal} data={data} profile={profile} school={school}
+  term={term} saving={saving} mutate={mutate} initialize={initialize} className={className} marksFor={marksFor}
+  setModal={setModal} inSidebar={detailInSidebar} />
+ function navigationItem(name, inRail = false) {
+  const Icon = navIcons[navNames.indexOf(name)] || academicIcons[academicPages.indexOf(name)]
+  const current = selected === name
+  const compact = inRail && navigationCollapsed
+  return (
+   <Button key={name} variant={current ? 'secondary' : 'ghost'} aria-current={current ? 'page' : undefined}
+    title={compact ? name : undefined} className={`min-w-0 justify-start px-3 text-left whitespace-normal ${compact ? 'lg:justify-center lg:px-0' : ''}`} onClick={() => navigate(name)}>
+    <Icon aria-hidden="true" size={17} />
+    <span className={compact ? 'lg:sr-only' : undefined}>{name}</span>
+    {name === 'Students' && <Badge variant="outline" className={`nav-count ml-auto ${compact ? 'lg:hidden' : ''}`}>{data.students.length}</Badge>}
+   </Button>
+  )
+ }
  return (
   <>
    <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-40 focus:rounded-md focus:bg-card focus:px-4 focus:py-3 focus:ring-2 focus:ring-ring">Skip to workspace content</a>
-   <ResizableWorkspace navigation={
-   <aside id="pane-navigation" className="portal-sidebar flex min-h-0 min-w-0 flex-col gap-3 border-b bg-card px-4 py-3 lg:overflow-y-auto lg:rounded-xl lg:border lg:py-4"
+   <ResizableWorkspace navigationCollapsed={navigationCollapsed} navigation={
+   <aside id="pane-navigation" className={`portal-sidebar flex min-h-0 min-w-0 flex-col gap-3 border-b bg-card px-4 py-3 lg:overflow-y-auto lg:rounded-xl lg:border lg:py-4 ${navigationCollapsed ? 'lg:px-2' : ''}`}
     onKeyDown={event=>{
      if(event.key==='Escape' && menuOpen){
       setMenuOpen(false)
       menuButton.current?.focus()
      }
     }}>
-    <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-5">
-     <Brand/>
-     <Badge className="hidden lg:inline-flex" variant="secondary">Academic year {term?.year || new Date().getFullYear()}</Badge>
+    <div className="flex items-center justify-between gap-3 lg:flex-wrap">
+     <div className={navigationCollapsed ? 'lg:hidden' : ''}><Brand /></div>
+     <Button variant="ghost" size="icon" className={`hidden lg:inline-flex ${navigationCollapsed ? 'lg:mx-auto' : ''}`}
+      type="button" aria-label={navigationCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}
+      aria-expanded={!navigationCollapsed} aria-controls="school-navigation" onClick={() => setNavigationCollapsed(value => !value)}>
+      {navigationCollapsed ? <PanelLeftOpen aria-hidden="true" size={19} /> : <PanelLeftClose aria-hidden="true" size={19} />}
+     </Button>
+     {!navigationCollapsed && <Badge className="hidden lg:inline-flex" variant="secondary">Academic year {term?.year || new Date().getFullYear()}</Badge>}
      <Button ref={menuButton} type="button" variant="outline" className="lg:hidden"
       aria-expanded={menuOpen} aria-controls="school-navigation" onClick={()=>setMenuOpen(open=>!open)}>
       {menuOpen?<X size={17} aria-hidden="true"/>:<Menu size={17} aria-hidden="true"/>} Menu
@@ -103,20 +224,11 @@ export default function App(){
     </div>
     <div id="school-navigation" className={`${menuOpen?'flex':'hidden'} min-h-0 min-w-0 flex-col gap-3 lg:flex lg:flex-1`}>
     <nav aria-label="School portal" className="grid max-h-[55svh] min-w-0 gap-1 overflow-y-auto p-1 sm:grid-cols-2 lg:flex lg:max-h-none lg:flex-col [&>button]:shrink-0">
-     {pages.map(p => {
-      const Icon = navIcons[navNames.indexOf(p)] || academicIcons[academicPages.indexOf(p)]
-      const current = selected === p
-      return (
-       <Button key={p} variant={current ? 'secondary' : 'ghost'} aria-current={current ? 'page' : undefined} className="justify-start px-3 text-left" onClick={() => navigate(p)}>
-        <Icon size={17}/>{p}
-        {p === 'Students' && <Badge variant="outline" className="nav-count ml-auto">{data.students.length}</Badge>}
-       </Button>
-      )
-     })}
+     {pages.map(name => navigationItem(name, true))}
     </nav>
-    <div className="flex items-center gap-3 border-t pt-2 lg:mt-auto">
-     <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-sm font-semibold text-primary">{profile.display_name[0]}</span>
-     <div className="min-w-0 flex-1 text-sm">
+    <div className={`flex items-center gap-3 border-t pt-2 lg:mt-auto ${navigationCollapsed ? 'lg:justify-center' : ''}`}>
+     <span aria-hidden="true" className={`grid size-9 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold ${navigationCollapsed ? 'lg:hidden' : ''}`}>{profile.display_name[0]}</span>
+     <div className={`min-w-0 flex-1 text-sm ${navigationCollapsed ? 'lg:hidden' : ''}`}>
       <div className="truncate font-medium">{profile.display_name}</div>
       <div className="text-xs text-muted-foreground">{ROLES[profile.role]}</div>
      </div>
@@ -125,7 +237,7 @@ export default function App(){
     </div>
    </aside>
    } workspace={
-    <aside id="pane-workspace" aria-label="Term controls" className="portal-tools min-w-0 border-b bg-card px-4 py-3 xl:overflow-y-auto xl:rounded-xl xl:border xl:py-4">
+    <aside id="pane-workspace" aria-label="Term controls and details" className="portal-tools min-w-0 border-b bg-card px-4 py-3 xl:overflow-y-auto xl:rounded-xl xl:border xl:py-4">
      <div className="flex flex-wrap items-center justify-between gap-2 xl:flex-col xl:items-stretch xl:gap-3">
       <label htmlFor="workspace-term" className="text-sm font-semibold">Academic term</label>
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial xl:[&>span]:flex-1">
@@ -133,46 +245,82 @@ export default function App(){
        <Button variant="ghost" size="icon" aria-label="Refresh school data" aria-disabled={loading} onClick={() => { if (!loading) load() }}><RefreshCw size={17} className={loading?'motion-safe:animate-spin':''}/></Button>
       </div>
      </div>
+     {detailInSidebar && modalView}
     </aside>
    }>
    <main id="workspace-content" aria-label={selected} ref={pageContent} tabIndex={-1} className="portal-content min-h-0 min-w-0 lg:overflow-y-auto lg:rounded-xl lg:border lg:bg-card">
     <header className="border-b bg-card px-4 py-3 sm:px-7 lg:sticky lg:top-0 lg:z-10">
-     <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><span className="truncate">{school?.name}</span><ChevronRight size={14} className="shrink-0"/><b className="shrink-0 font-medium text-foreground">{selected}</b></div>
+     <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><span className="truncate">{school?.name}</span><ChevronRight size={14} className="shrink-0"/><b className="shrink-0 font-medium text-foreground">{selected}</b><NilatextMark key={selected} draw="page" className="ml-auto size-5 shrink-0 text-primary" /></div>
     </header>
     <div className="mx-auto max-w-[90rem] space-y-5 px-4 py-6 sm:px-7 lg:py-8">
      <Alert>{error}</Alert>
      {error&&<Button variant="outline" onClick={()=>{setError('');load()}}>Retry loading</Button>}
-     {loading?<div role="status" className="flex items-center gap-3 py-12 text-muted-foreground"><RefreshCw aria-hidden="true" className="motion-safe:animate-spin" size={20}/><p>Loading school records…</p></div>:content}
+     {loading?<LoadingState page={selected} role={profile.role} label={`Loading ${selected.toLowerCase()}…`} />:content}
     </div>
    </main>
    </ResizableWorkspace>
    {toast&&<div role="status" className="portal-toast fixed z-30 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm shadow-lg"><CheckCircle2 aria-hidden="true" size={18} className="shrink-0 text-primary"/><span className="wrap-anywhere">{toast}</span></div>}
-   {modal&&<SchoolModal modal={modal} close={closeModal} data={data} profile={profile} school={school} term={term} saving={saving} mutate={mutate} initialize={initialize} className={className} marksFor={marksFor} setModal={setModal}/>}
+   {!detailInSidebar && modalView}
   </>
  )
 }
 function InlineLink({profiles,students,links,saving,onSave}){return <form className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={e=>{e.preventDefault();onSave(Object.fromEntries(new FormData(e.currentTarget)))}}><Field label="Account"><NativeSelect name="user_id" required defaultValue=""><option value="" disabled>Select account</option>{profiles.filter(p=>['parent','student'].includes(p.role)).map(p=><option key={p.user_id} value={p.user_id}>{p.display_name} · {ROLES[p.role]}</option>)}</NativeSelect></Field><Field label="Learner"><NativeSelect name="student_id" required defaultValue=""><option value="" disabled>Select learner</option>{students.map(s=><option value={s.id} key={s.id}>{s.full_name}</option>)}</NativeSelect></Field><Button disabled={saving}>Link learner</Button></form>}
-function SchoolModal({modal,close,data,profile,school,term,saving,mutate,initialize,className,marksFor,setModal}){
+function WorkspaceDetail({ title, onClose, children }) {
+ const heading = useRef(null)
+ const trigger = useRef(document.activeElement)
+ useEffect(() => {
+  heading.current?.focus()
+ }, [title])
+
+ function close() {
+  onClose()
+  if (trigger.current?.isConnected) trigger.current.focus({ preventScroll: true })
+ }
+
+ return (
+  <section aria-labelledby="workspace-detail-title" className="portal-detail mt-5 grid min-w-0 gap-3 border-t pt-4"
+   onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close() } }}>
+   <header className="flex items-start justify-between gap-2">
+    <h2 id="workspace-detail-title" ref={heading} tabIndex={-1} className="py-2 font-semibold">{title}</h2>
+    <Button type="button" variant="ghost" size="icon" aria-label="Close details" onClick={close}><X aria-hidden="true" size={17} /></Button>
+   </header>
+   {children}
+  </section>
+ )
+}
+
+function SchoolModal({modal,close,data,profile,school,term,saving,mutate,initialize,className,marksFor,setModal,inSidebar}){
+ const Detail = inSidebar ? WorkspaceDetail : Modal
  const [error,setError]=useState(''),[inviteRole,setInviteRole]=useState('teacher');const admin=profile.role==='admin',staff=admin||profile.role==='teacher',sid=profile.school_id,s=modal.student,c=modal.class,invoice=modal.invoice;
  async function submit(e){e.preventDefault();setError('');let f=Object.fromEntries(new FormData(e.currentTarget));try{let action;if(modal.type==='student'){if(!admin)throw new Error('Administrator access required');const row={school_id:sid,full_name:f.full_name.trim(),admission_no:f.admission_no.trim(),class_id:f.class_id,guardian_name:f.guardian_name.trim(),guardian_phone:f.guardian_phone.trim(),active:f.active==='true'};action=()=>s?editRow('nt_students',s.id,row):addRow('nt_students',row)}
- if(modal.type==='class'){action=()=>c?editRow('nt_classes',c.id,{name:f.name.trim(),teacher_id:f.teacher_id||null}):addRow('nt_classes',{school_id:sid,name:f.name.trim(),teacher_id:f.teacher_id||null})}
+ if (modal.type === 'class') {
+  const level = f.level.trim()
+  const stream = f.stream.trim()
+  const name = [level, stream].filter(Boolean).join(' ')
+  if (!level || name.length > 60) throw new Error('Enter a level and keep the combined class and stream name to 60 characters.')
+  const rosterId = f.teacher_id.startsWith('roster:') ? f.teacher_id.slice(7) : null
+  const teacherInvite = data.invites.find(item => item.teacher_roster_id === rosterId && item.accepted_at)
+  const teacher = data.profiles.find(item => item.role === 'teacher' && item.email === teacherInvite?.email)
+  const fields = { name, level, stream: stream || null, teacher_roster_id: rosterId, teacher_id: rosterId ? teacher?.user_id ?? null : f.teacher_id || null }
+  action = () => c ? editRow('nt_classes',c.id,fields) : addRow('nt_classes',{school_id:sid,...fields})
+ }
  if(modal.type==='marks'){const rows=SUBJECTS.map((sub,i)=>{let n=Number(f['s'+i]);if(f['s'+i]===''||!Number.isFinite(n)||n<0||n>100)throw new Error('Enter a mark between 0 and 100 for each subject.');return {school_id:sid,student_id:s.id,term_id:term.id,subject:sub,score:n,updated_at:new Date().toISOString()}});action=()=>unwrap(supabase.from('nt_marks').upsert(rows,{onConflict:'student_id,term_id,subject'}))}
  if(modal.type==='note')action=()=>addRow('nt_notes',{school_id:sid,body:f.body.trim(),author_id:profile.user_id});
- if(modal.type==='invite')action=()=>addRow('nt_invites',{school_id:sid,email:f.email.trim().toLowerCase(),role:f.role,student_id:f.role==='teacher'?null:f.student_id});
+ if(modal.type==='invite')action=()=>addRow('nt_invites',{school_id:sid,email:f.email.trim().toLowerCase(),role:f.role,student_id:f.role==='teacher'?null:f.student_id,...(modal.teacher ? {teacher_roster_id:modal.teacher.id} : {})});
  if(modal.type==='invoice')action=()=>addRow('nt_invoices',{school_id:sid,student_id:f.student_id,term_id:term.id,amount:Number(f.amount),description:f.description.trim()});
  if(modal.type==='payment'){if(!validPayment(f.amount,balance(invoice,data.payments)))throw new Error('Enter a positive payment with up to two decimal places, within the outstanding balance.');action=()=>addRow('nt_payments',{school_id:sid,invoice_id:invoice.id,amount:Number(f.amount),reference:f.reference.trim(),request_id:modal.requestId})}
  if(modal.type==='term')action=async()=>{await addRow('nt_terms',{school_id:sid,year:Number(f.year),number:Number(f.number)});await initialize()};
  const ok=await mutate(action,'Changes saved to Supabase');if(!ok)setError('The change could not be saved. See the error on the page, correct the form, and retry.');
  }catch(e){setError(friendlyError(e))}}
- if(modal.type==='report'){let ms=marksFor(s.id),a=average(ms);return <Modal title="Learner progress report" onClose={close} wide><div className="report space-y-4 text-sm"><div className="space-y-2 border-b pb-4 [&>h2]:text-xl [&>h2]:font-semibold"><Brand/><h2>{school.name}</h2><p>ACADEMIC PROGRESS REPORT · {term.year}</p></div><div className="flex flex-wrap items-center justify-between gap-2 [&_h2]:text-lg [&_h2]:font-semibold"><div><small>LEARNER</small><h2>{s.full_name}</h2><p>{s.admission_no} · {className(s.class_id)}</p></div><Pill tone="neutral">Term {term.number} · {term.year}</Pill></div><Table headers={['Learning area','Score','Progress']} >{SUBJECTS.map(sub=>{const n=ms.find(m=>m.subject===sub)?.score;return <tr key={sub}><td>{sub}</td><td>{n==null?'Not assessed':n+'%'}</td><td>{progress(n==null?null:Number(n))}</td></tr>})}</Table><div className="flex flex-wrap justify-between gap-2 rounded-md bg-muted px-3 py-2"><span>Term average <strong>{a===null?'Not assessed':a+'%'}</strong></span><span>{ms.length}/{SUBJECTS.length} subjects assessed</span></div><p><b>Suggested comment:</b> {a===null?'Results have not yet been entered.':a>=80?'Excellent progress. Keep challenging yourself and building on your strengths.':a>=65?'Steady progress. Consistent practice will help strengthen understanding.':'Additional support and regular practice are recommended. Arrange a check-in with your teacher.'}</p><p className="text-sm text-muted-foreground">Bands and suggested comments are illustrative. Averages use available subjects. This printout is a progress summary, not a certified examination result.</p></div><div className="flex flex-wrap justify-end gap-2">{staff&&<Button variant="outline" onClick={()=>setModal({type:'marks',student:s})}>Edit marks</Button>}<Button onClick={()=>window.print()}><Printer size={17}/> Print report</Button></div></Modal>}
- if(modal.type==='ledger')return <Modal title="Invoice receipts" onClose={close} wide><p>{data.students.find(s=>s.id===invoice.student_id)?.full_name} · {invoice.description}</p><p>Invoiced {money(invoice.amount)} · Balance {money(balance(invoice,data.payments))}</p><Table headers={['Reference','Amount','Received']} empty={!data.payments.some(p=>p.invoice_id===invoice.id)}>{data.payments.filter(p=>p.invoice_id===invoice.id).map(p=><tr key={p.id}><td>{p.reference}</td><td>{money(p.amount)}</td><td>{new Date(p.received_at).toLocaleString()}</td></tr>)}</Table><p className="text-sm text-muted-foreground">Recorded bookkeeping receipts. No online payment is processed.</p></Modal>
+ if(modal.type==='report'){let ms=marksFor(s.id),a=average(ms);return <Detail title="Learner progress report" onClose={close} wide><div className="report space-y-4 text-sm"><div className="space-y-2 border-b pb-4 [&>h2]:text-xl [&>h2]:font-semibold"><Brand/><h2>{school.name}</h2><p>ACADEMIC PROGRESS REPORT · {term.year}</p></div><div className="flex flex-wrap items-center justify-between gap-2 [&_h2]:text-lg [&_h2]:font-semibold"><div><small>LEARNER</small><h2>{s.full_name}</h2><p>{s.admission_no} · {className(s.class_id)}</p></div><Pill tone="neutral">Term {term.number} · {term.year}</Pill></div><Table headers={['Learning area','Score','Progress']} >{SUBJECTS.map(sub=>{const n=ms.find(m=>m.subject===sub)?.score;return <tr key={sub}><td>{sub}</td><td>{n==null?'Not assessed':n+'%'}</td><td>{progress(n==null?null:Number(n))}</td></tr>})}</Table><AssessmentReport schoolId={sid} termId={term.id} studentId={s.id} /><div className="flex flex-wrap justify-between gap-2 rounded-md bg-muted px-3 py-2"><span>Term average <strong>{a===null?'Not assessed':a+'%'}</strong></span><span>{ms.length}/{SUBJECTS.length} subjects assessed</span></div><p><b>Suggested comment:</b> {a===null?'Results have not yet been entered.':a>=80?'Excellent progress. Keep challenging yourself and building on your strengths.':a>=65?'Steady progress. Consistent practice will help strengthen understanding.':'Additional support and regular practice are recommended. Arrange a check-in with your teacher.'}</p><p className="text-sm text-muted-foreground">Bands and suggested comments are illustrative. Averages use available subjects. This printout is a progress summary, not a certified examination result.</p></div><div className="flex flex-wrap justify-end gap-2">{staff&&<Button variant="outline" onClick={()=>setModal({type:'marks',student:s})}>Edit marks</Button>}<Button onClick={()=>window.print()}><Printer size={17}/> Print report</Button></div></Detail>}
+ if(modal.type==='ledger')return <Detail title="Invoice receipts" onClose={close} wide><p>{data.students.find(s=>s.id===invoice.student_id)?.full_name} · {invoice.description}</p><p>Invoiced {money(invoice.amount)} · Balance {money(balance(invoice,data.payments))}</p><Table headers={['Reference','Amount','Received']} empty={!data.payments.some(p=>p.invoice_id===invoice.id)}>{data.payments.filter(p=>p.invoice_id===invoice.id).map(p=><tr key={p.id}><td>{p.reference}</td><td>{money(p.amount)}</td><td>{new Date(p.received_at).toLocaleString()}</td></tr>)}</Table><p className="text-sm text-muted-foreground">Recorded bookkeeping receipts. No online payment is processed.</p></Detail>
  if(modal.type==='revoke'||modal.type==='cancelInvite')return <Modal title={modal.type==='revoke'?'Revoke school access?':'Cancel access approval?'} onClose={close}><p>{modal.type==='revoke'?`This removes ${modal.member.display_name}’s school membership and class assignments. Their account remains registered and can be approved again later.`:`This cancels the pending approval for ${modal.invite.email}. You can approve them again later.`}</p><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={saving} onClick={close}>Keep access</Button><Button variant="destructive" disabled={saving} onClick={()=>mutate(()=>modal.type==='revoke'?unwrap(supabase.rpc('nt_revoke_member',{member_id:modal.member.user_id})):unwrap(supabase.from('nt_invites').delete().eq('id',modal.invite.id)),'Access updated')}>{saving?'Updating…':'Confirm removal'}</Button></div></Modal>;
  const title={student:s?'Edit learner':'Add a learner',class:c?'Edit class':'Create a class',marks:'Enter subject marks',note:'Add a school note',invite:'Approve school access',invoice:'Create term invoice',payment:'Record a payment',term:'Add academic term'}[modal.type];
  return <Modal title={title} onClose={close}><form className="space-y-4" onSubmit={submit}><Alert>{error}</Alert>{modal.type==='student'&&<><Field label="Learner full name" name="full_name" defaultValue={s?.full_name} maxLength={120} required/><Field label="Admission number" name="admission_no" defaultValue={s?.admission_no} maxLength={30} required/><Field label="Class"><NativeSelect name="class_id" defaultValue={s?.class_id||''} required><option value="" disabled>Select class</option>{data.classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect></Field>{!data.classes.length&&<AlertBox>Create a class first in Classes.</AlertBox>}<Field label="Guardian name" name="guardian_name" defaultValue={s?.guardian_name||''} maxLength={120}/><Field label="Guardian phone" name="guardian_phone" type="tel" defaultValue={s?.guardian_phone||''} maxLength={30}/><Field label="Enrolment status"><NativeSelect name="active" defaultValue={s?.active===false?'false':'true'}><option value="true">Active</option><option value="false">Inactive</option></NativeSelect></Field></>}
- {modal.type==='class'&&<><Field label="Class name" name="name" placeholder="Grade 8A" defaultValue={c?.name} maxLength={60} required/><Field label="Class teacher"><NativeSelect name="teacher_id" defaultValue={c?.teacher_id||''}><option value="">Not assigned yet</option>{data.profiles.filter(p=>p.role==='teacher').map(p=><option key={p.user_id} value={p.user_id}>{p.display_name}</option>)}</NativeSelect></Field><p className="text-sm text-muted-foreground">Approve a teacher’s email in People & access. After they register and join, assign them here.</p></>}
+ {modal.type==='class'&&<><Field label="Class level" name="level" placeholder="Grade 8" defaultValue={c?.level || c?.name} maxLength={60} required/><Field label="Stream" name="stream" placeholder="G" defaultValue={c?.stream || ''} maxLength={30}/><Field label="Class teacher"><NativeSelect name="teacher_id" defaultValue={c?.teacher_roster_id ? `roster:${c.teacher_roster_id}` : c?.teacher_id || ''}><option value="">Not assigned yet</option>{data.teacherRoster.map(teacher => <option key={teacher.id} value={`roster:${teacher.id}`}>{teacher.full_name}{teacher.tsc_no ? ` · ${teacher.tsc_no}` : ''}</option>)}{data.profiles.filter(person=>person.role==='teacher' && !data.invites.some(invite=>invite.teacher_roster_id && invite.email===person.email)).map(person=><option key={person.user_id} value={person.user_id}>{person.display_name}</option>)}</NativeSelect></Field><p className="text-sm text-muted-foreground">Assign a teacher from the roster. They gain portal access only after their verified email is approved and they join.</p></>}
  {modal.type==='marks'&&<><p>{s.full_name} · Term {term.number}, {term.year}</p><div className="grid gap-4 sm:grid-cols-2">{SUBJECTS.map((sub,i)=><Field label={sub} key={sub} name={'s'+i} type="number" min="0" max="100" step="0.01" defaultValue={marksFor(s.id).find(m=>m.subject===sub)?.score??''} required/>)}</div></>}
  {modal.type==='note'&&<Field label="Note"><Textarea name="body" rows={4} maxLength={500} required placeholder="An update worth sharing with the teaching team…"/></Field>}
- {modal.type==='invite'&&<><Field label="Email address" name="email" type="email" required/><Field label="School role"><NativeSelect name="role" value={inviteRole} onChange={e=>setInviteRole(e.target.value)}>{['teacher','parent','student'].map(r=><option key={r} value={r}>{ROLES[r]}</option>)}</NativeSelect></Field>{inviteRole!=='teacher'&&<Field label="Linked learner"><NativeSelect name="student_id" defaultValue="" required><option value="" disabled>Select learner</option>{data.students.map(s=><option key={s.id} value={s.id}>{s.full_name} · {s.admission_no}</option>)}</NativeSelect></Field>}<p className="text-sm text-muted-foreground">The person must sign up with this exact email, confirm it, and choose “Join my school”. No email will be sent by this approval.</p></>}
+ {modal.type==='invite'&&<>{modal.teacher && <p className="text-sm">Confirm that {modal.teacher.full_name} should join this school as a teacher.</p>}<Field label="Email address" name="email" type="email" defaultValue={modal.teacher?.email} required/>{modal.teacher ? <input type="hidden" name="role" value="teacher" /> : <Field label="School role"><NativeSelect name="role" value={inviteRole} onChange={e=>setInviteRole(e.target.value)}>{['teacher','parent','student'].map(r=><option key={r} value={r}>{ROLES[r]}</option>)}</NativeSelect></Field>}{inviteRole!=='teacher'&&<Field label="Linked learner"><NativeSelect name="student_id" defaultValue="" required><option value="" disabled>Select learner</option>{data.students.map(s=><option key={s.id} value={s.id}>{s.full_name} · {s.admission_no}</option>)}</NativeSelect></Field>}<p className="text-sm text-muted-foreground">The person must sign up with this exact email, confirm it, and choose “Join my school”. No email will be sent by this approval.</p></>}
  {modal.type==='invoice'&&<><Field label="Learner"><NativeSelect name="student_id" defaultValue="" required><option value="" disabled>Select learner</option>{data.students.filter(s=>s.active&&!data.invoices.some(i=>i.student_id===s.id)).map(s=><option value={s.id} key={s.id}>{s.full_name}</option>)}</NativeSelect></Field><Field label="Invoice description" name="description" defaultValue="Term tuition" maxLength={120} required/><Field label="Amount (KES)" name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" required/><p className="text-sm text-muted-foreground">Term {term.number}, {term.year}. One posted invoice per learner per term. Posted invoices and receipts are immutable.</p></>}
  {modal.type==='payment'&&<><AlertBox>Outstanding balance {money(balance(invoice,data.payments))}. Record only a payment already received.</AlertBox><Field label="Amount received (KES)" name="amount" type="number" min="0.01" max={balance(invoice,data.payments)} step="0.01" required/><Field label="Unique receipt / transaction reference" name="reference" maxLength={100} required/><p className="text-sm text-muted-foreground">This saves a bookkeeping receipt, not a charge or money transfer.</p></>}
  {modal.type==='term'&&<><Field label="Academic year" name="year" type="number" min="2020" max="2100" defaultValue={new Date().getFullYear()} required/><Field label="Term"><NativeSelect name="number"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></NativeSelect></Field></>}

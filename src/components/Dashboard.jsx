@@ -3,6 +3,7 @@ import {Users,GraduationCap,CalendarCheck,Wallet,BookOpen,Bell,FileText,ChevronL
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Panel, Stat } from './UI'
+import { accentStyle, pageAccents } from '../lib/accents'
 import {localDate,ROLES} from '../lib/domain'
 
 function Calendar({selected,onSelect}){
@@ -40,10 +41,10 @@ function Calendar({selected,onSelect}){
 export default function Dashboard({profile,termLabel,data,mean,attendanceRate,day,needSupport,navigate,setModal,setDay,learnerTable}){
  const admin=profile.role==='admin',staff=admin||profile.role==='teacher'
  const shortcuts=admin?[
-  ['Add staff',Users,()=>setModal({type:'invite'})],['Add student',GraduationCap,()=>setModal({type:'student'})],['Take attendance',CalendarCheck,()=>navigate('Attendance')],['Collect fees',Wallet,()=>navigate('Fees')],['Add class',BookOpen,()=>setModal({type:'class'})],['Academic reports',FileText,()=>navigate('Academic reports')]
+  ['Add staff',Users, pageAccents['People & access'],()=>setModal({type:'invite'})],['Add student',GraduationCap, pageAccents['Students'],()=>setModal({type:'student'})],['Take attendance',CalendarCheck, pageAccents['Attendance'],()=>navigate('Attendance')],['Collect fees',Wallet, pageAccents['Fees'],()=>navigate('Fees')],['Add class',BookOpen, pageAccents['Classes'],()=>setModal({type:'class'})],['Academic reports',FileText, pageAccents['Academic reports'],()=>navigate('Academic reports')]
  ]:staff?[
-  ['My learners',GraduationCap,()=>navigate('Students')],['Take attendance',CalendarCheck,()=>navigate('Attendance')],['Enter marks',ClipboardCheck,()=>navigate('Academic reports')],['My classes',BookOpen,()=>navigate('Classes')]
- ]:[['Progress reports',GraduationCap,()=>navigate('Academic reports')],['Attendance',CalendarCheck,()=>navigate('Attendance')],['School fees',Wallet,()=>navigate('Fees')]]
+  ['My learners',GraduationCap, pageAccents['Students'],()=>navigate('Students')],['Take attendance',CalendarCheck, pageAccents['Attendance'],()=>navigate('Attendance')],['Enter marks',ClipboardCheck, pageAccents['Academic reports'],()=>navigate('Academic reports')],['My classes',BookOpen, pageAccents['Classes'],()=>navigate('Classes')]
+ ]:[['Progress reports',GraduationCap, pageAccents['Academic reports'],()=>navigate('Academic reports')],['Attendance',CalendarCheck, pageAccents['Attendance'],()=>navigate('Attendance')],['School fees',Wallet, pageAccents['Fees'],()=>navigate('Fees')]]
  const pending=data.invites.filter(i=>!i.accepted_at).length,staffCount=data.profiles.filter(p=>['admin','teacher'].includes(p.role)).length
  const classes=admin?data.classes:data.classes.filter(c=>c.teacher_id===profile.user_id)
  return (
@@ -54,15 +55,15 @@ export default function Dashboard({profile,termLabel,data,mean,attendanceRate,da
    </div>
    <Panel title="Quick actions">
     <section aria-label="School quick actions" className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
-     {shortcuts.map(([label,Icon,action]) => (
-      <Button key={label} variant="outline" className="justify-start px-2 text-left whitespace-normal sm:px-3" onClick={action}>
-       <Icon size={17} className="text-primary" />{label}
+     {shortcuts.map(([label,Icon,tone,action]) => (
+      <Button key={label} variant="outline" style={accentStyle(tone)} className="accent-item accent-control justify-start px-2 text-left whitespace-normal sm:px-3" onClick={action}>
+       <Icon size={17} aria-hidden="true" />{label}
       </Button>
      ))}
     </section>
    </Panel>
    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="School totals">
-    {staff?<><Stat label="TOTAL CLASSES" value={classes.length} detail={admin?'School classes':'Assigned to you'} icon={School} onClick={()=>navigate('Classes')}/><Stat label="TOTAL STUDENTS" value={data.students.length} detail="Learners you can access" icon={GraduationCap} onClick={()=>navigate('Students')}/>{admin?<><Stat label="TOTAL STAFF" value={staffCount} detail="Registered administrators & teachers" icon={Users} onClick={()=>navigate('People & access')}/><Stat label="PENDING ACCESS" value={pending} detail="Approved invitations awaiting acceptance" icon={ClipboardCheck} onClick={()=>navigate('People & access')}/></>:<><Stat label="LEARNER AVERAGE" value={mean===null?'—':mean+'%'} detail="From recorded subjects" icon={FileText} onClick={()=>navigate('Academic reports')}/><Stat label="NEED A CHECK-IN" value={needSupport} detail="Below 65% average · illustrative" icon={Users} onClick={()=>navigate('Academic reports')}/></>}</>:<><Stat label="LINKED LEARNERS" value={data.students.length} detail="Linked to your account" icon={Users} onClick={()=>navigate('Academic reports')}/><Stat label="ACADEMIC AVERAGE" value={mean===null?'—':mean+'%'} detail="From recorded subjects" icon={GraduationCap} onClick={()=>navigate('Academic reports')}/><Stat label="ATTENDANCE" value={day===localDate()&&attendanceRate!==null?attendanceRate+'%':'—'} detail={day===localDate()?'Today’s saved register':'Open the attendance register'} icon={CalendarCheck} onClick={()=>navigate('Attendance')}/></>}
+    {staff?<><Stat tone="attendance" label="TOTAL CLASSES" value={classes.length} detail={admin?'School classes':'Assigned to you'} icon={School} onClick={()=>navigate('Classes')}/><Stat tone="learners" label="TOTAL STUDENTS" value={data.students.length} detail="Learners you can access" icon={GraduationCap} onClick={()=>navigate('Students')}/>{admin?<><Stat tone="reports" label="TOTAL STAFF" value={staffCount} detail="Registered administrators & teachers" icon={Users} onClick={()=>navigate('People & access')}/><Stat tone="access" label="PENDING ACCESS" value={pending} detail="Approved invitations awaiting acceptance" icon={ClipboardCheck} onClick={()=>navigate('People & access')}/></>:<><Stat tone="reports" label="LEARNER AVERAGE" value={mean===null?'—':mean+'%'} detail="From recorded subjects" icon={FileText} onClick={()=>navigate('Academic reports')}/><Stat tone="assignments" label="NEED A CHECK-IN" value={needSupport} detail="Below 65% average · illustrative" icon={Users} onClick={()=>navigate('Academic reports')}/></>}</>:<><Stat tone="learners" label="LINKED LEARNERS" value={data.students.length} detail="Linked to your account" icon={Users} onClick={()=>navigate('Academic reports')}/><Stat tone="reports" label="ACADEMIC AVERAGE" value={mean===null?'—':mean+'%'} detail="From recorded subjects" icon={GraduationCap} onClick={()=>navigate('Academic reports')}/><Stat tone="attendance" label="ATTENDANCE" value={day===localDate()&&attendanceRate!==null?attendanceRate+'%':'—'} detail={day===localDate()?'Today’s saved register':'Open the attendance register'} icon={CalendarCheck} onClick={()=>navigate('Attendance')}/></>}
    </section>
    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
     <Calendar selected={day} onSelect={date => {setDay(date);navigate('Attendance')}} />

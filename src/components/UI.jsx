@@ -1,4 +1,6 @@
 import { useRef } from 'react'
+import { NilatextMark } from './NilatextMark'
+import { accentStyle } from '../lib/accents'
 import { ArrowUpRight, BookOpen } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -10,8 +12,8 @@ import { Table as DataTable, TableBody, TableHead, TableHeader } from './ui/tabl
 export function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-        <BookOpen aria-hidden="true" className="size-5" />
+      <span className="grid size-10 shrink-0 place-items-center text-primary">
+        <NilatextMark className="size-6" />
       </span>
       <div>
         <div className="font-semibold tracking-tight">Nilatext</div>
@@ -50,20 +52,20 @@ export function Panel({ title, subtitle, action, children, className }) {
   )
 }
 
-export function Stat({ label, value, detail, icon: Icon, onClick }) {
+export function Stat({ label, value, detail, icon: Icon, onClick, tone }) {
   return (
-    <Card className={onClick ? "relative gap-3 transition-colors hover:border-ring/50" : "gap-3"}>
+    <Card style={tone ? accentStyle(tone) : undefined} className={`gap-3 ${onClick ? 'relative hover:border-ring/50' : ''} ${tone ? 'accent-item' : ''}`}>
       <CardHeader className="items-center text-sm font-medium">
         {onClick ? (
           <Button variant="ghost" className="min-h-0 justify-start p-0 text-left whitespace-normal before:absolute before:inset-0 hover:bg-transparent" onClick={onClick}>
             {label}
           </Button>
         ) : label}
-        {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />}
+        {Icon && <Icon aria-hidden="true" className={`size-4 shrink-0 ${tone ? 'text-current' : 'text-muted-foreground'}`} />}
       </CardHeader>
       <CardContent>
         <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+        <p className={`mt-1 text-xs ${tone ? 'text-current' : 'text-muted-foreground'}`}>{detail}</p>
       </CardContent>
     </Card>
   )
