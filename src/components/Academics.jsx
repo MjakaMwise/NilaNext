@@ -1,5 +1,6 @@
+import { LoadingState } from './LoadingState'
 import { useCallback, useEffect, useState } from 'react'
-import { allRows, addRow, editRow, unwrap } from '../lib/api'
+import { allRows, addRow, editRow, unwrap, readRoster } from '../lib/api'
 import { friendlyError, localDate } from '../lib/domain'
 import { supabase } from '../lib/supabase'
 import { Alert, Field, Heading, Modal, Panel, Table } from './UI'
@@ -114,7 +115,7 @@ export default function Academics({ page, profile, termId, data, refreshVersion 
     }[page]} />
     <Alert>{loadError || error}</Alert>
     {message && <p role="status">{message}</p>}
-    {loading ? <p role="status">Loading academic records…</p> : !loadError && <>
+    {loading ? <LoadingState page={page} label={`Loading ${page.toLowerCase()}…`} nested /> : !loadError && <>
       {page === 'Curriculum' && admin && <>
         <div className="grid gap-4 xl:grid-cols-2">
           <Panel title="Departments">
@@ -295,14 +296,6 @@ function AcademicDialog({ dialog, close, error, saving, save, schoolId, offering
   </Modal>
 }
 
-async function readRoster(oid) {
-  const roster = []
-  for (let offset = 0; ; offset += 1000) {
-    const rows = await unwrap(supabase.rpc('nt_offering_roster', { oid }).range(offset, offset + 999))
-    roster.push(...rows)
-    if (rows.length < 1000) return roster
-  }
-}
 
 function Roster({ offeringId, refreshVersion, onRemove }) {
   const [students, setStudents] = useState(null)
@@ -315,7 +308,7 @@ function Roster({ offeringId, refreshVersion, onRemove }) {
     return () => { current = false }
   }, [offeringId, refreshVersion])
   if (error) return <Alert>{error}</Alert>
-  if (!students) return <p role="status">Loading roster…</p>
+  if (!students) return <LoadingState label="Loading roster…" nested />
   return <Table headers={['Learner', 'Admission number', ...(onRemove ? ['Actions'] : [])]} empty={!students.length}>
     {students.map(row => <tr key={row.id}><td>{row.full_name}</td><td>{row.admission_no}</td>
       {onRemove && <td><Button variant="ghost" onClick={() => onRemove(row)}>Remove</Button></td>}
@@ -361,7 +354,7 @@ function LessonRegister({ lesson, day, staff, schoolId, students }) {
   return <form className="grid gap-3" onSubmit={save}>
     <Alert>{error}</Alert>
     {saved && <p role="status">Register saved.</p>}
-    {!register ? !error && <p role="status">Loading register…</p> : <>
+    {!register ? !error && <LoadingState label="Loading register…" nested /> : <>
       <Table headers={['Learner', 'Status']} empty={!register.length}>
         {register.map(row => <tr key={row.id}><td>{row.full_name}</td><td>{staff ?
           <NativeSelect aria-label={`Attendance for ${row.full_name}`} value={draft[row.id] || ''} disabled={saving}
@@ -414,7 +407,7 @@ function AssignmentResponses({ assignment, offering, profile, students, enrolmen
   const name = id => [...(result?.roster || []), ...students].find(row => row.id === id)?.full_name || 'Former roster member'
   return <div className="grid gap-3 border-t pt-3">
     <Alert>{error}</Alert>
-    {!result ? !error && <p role="status">Loading responses…</p> : <>
+    {!result ? !error && <LoadingState label="Loading responses…" nested /> : <>
       {staff && <p>{result.roster.filter(learner => result.responses.some(row => row.student_id === learner.id)).length} of {result.roster.length} current learners submitted</p>}
       {!result.responses.length && <p>No responses yet.</p>}
       {result.responses.map(row => <div key={row.id} className="rounded-lg border p-3">

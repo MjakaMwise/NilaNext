@@ -13,3 +13,12 @@ export async function allRows(table,schoolId,filters={}){
 }
 export const addRow=(table,value)=>unwrap(supabase.from(table).insert(value).select().single())
 export const editRow=(table,id,value)=>unwrap(supabase.from(table).update(value).eq('id',id).select().single())
+
+export async function readRoster(oid) {
+  const roster = []
+  for (let offset = 0; ; offset += 1000) {
+    const rows = await unwrap(supabase.rpc('nt_offering_roster', { oid }).range(offset, offset + 999))
+    roster.push(...rows)
+    if (rows.length < 1000) return roster
+  }
+}

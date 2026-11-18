@@ -1,23 +1,24 @@
-import { useState } from 'react'
-import { ArrowRight, BookOpen, CalendarCheck, ChevronDown, ClipboardList, GraduationCap, ShieldCheck, Users, Wallet } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowDown, ArrowRight, BookOpen, CalendarCheck, ChevronDown, ClipboardList, GraduationCap, Pause, Play, ShieldCheck, Users, Wallet } from 'lucide-react'
+import { accentStyle } from '../lib/accents'
 import { Brand } from './UI'
 import { Button } from './ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Card, CardContent, CardDescription, CardHeader } from './ui/card'
 
 const features = [
- { icon: GraduationCap, title: 'Learner records', text: 'Manage admissions, class placement and guardian details from one school workspace.' },
- { icon: CalendarCheck, title: 'Timetables and attendance', text: 'Schedule weekly lessons and record attendance for a school day or a specific lesson.' },
- { icon: ClipboardList, title: 'Assignments', text: 'Post instructions and due dates, then review text responses from learners.' },
- { icon: BookOpen, title: 'Academic reports', text: 'Record marks, review term progress and print reports to share with families.' },
- { icon: Wallet, title: 'Fees and receipts', text: 'Create term invoices, record payments received and see outstanding balances.' },
- { icon: ShieldCheck, title: 'School-managed access', text: 'Approve accounts by email and assign access based on each person’s role.' },
+ { icon: GraduationCap, tone: 'learners', title: 'Learner records', text: 'Manage admissions, class placement and guardian details from one school workspace.' },
+ { icon: CalendarCheck, tone: 'attendance', title: 'Timetables and attendance', text: 'Schedule weekly lessons and record attendance for a school day or a specific lesson.' },
+ { icon: ClipboardList, tone: 'assignments', title: 'Assignments', text: 'Post instructions and due dates, then review text responses from learners.' },
+ { icon: BookOpen, tone: 'reports', title: 'Academic reports', text: 'Record marks, review term progress and print reports to share with families.' },
+ { icon: Wallet, tone: 'fees', title: 'Fees and receipts', text: 'Create term invoices, record payments received and see outstanding balances.' },
+ { icon: ShieldCheck, tone: 'access', title: 'School-managed access', text: 'Approve accounts by email and assign access based on each person’s role.' },
 ]
 
 const roles = [
- { name: 'Administrators', title: 'Run the school workspace', text: 'Set up classes and terms, approve accounts, and manage learner records, reports and fees.' },
- { name: 'Teachers', title: 'Manage your assigned classes', text: 'Open subject rosters, take attendance, post assignments and enter marks.' },
- { name: 'Families', title: 'Follow your learner’s progress', text: 'View linked learners’ reports, attendance, assignments, timetables and fee balances.' },
- { name: 'Learners', title: 'Keep up with classwork', text: 'Check your timetable and upcoming assignments, submit responses and review your results.' },
+ { name: 'Administrators', tone: 'access', title: 'Run the school workspace', text: 'Set up classes and terms, approve accounts, and manage learner records, reports and fees.' },
+ { name: 'Teachers', tone: 'attendance', title: 'Manage your assigned classes', text: 'Open subject rosters, take attendance, post assignments and enter marks.' },
+ { name: 'Families', tone: 'reports', title: 'Follow your learner’s progress', text: 'View linked learners’ reports, attendance, assignments, timetables and fee balances.' },
+ { name: 'Learners', tone: 'learners', title: 'Keep up with classwork', text: 'Check your timetable and upcoming assignments, submit responses and review your results.' },
 ]
 
 const questions = [
@@ -30,46 +31,127 @@ function AccountLink({ signup = false, children, ...props }) {
  return <Button asChild {...props}><a href={signup ? '/?view=signup' : '/?view=signin'}>{children}</a></Button>
 }
 
+function FeatureShowcase() {
+ const [turn, setTurn] = useState(0)
+ const active = ((turn % features.length) + features.length) % features.length
+ const [playing, setPlaying] = useState(true)
+ const [visible, setVisible] = useState(!document.hidden)
+ const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
+ const [animate, setAnimate] = useState(true)
+
+ useEffect(() => {
+  const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+  const syncMotion = () => setReducedMotion(preference?.matches ?? false)
+  const syncVisibility = () => setVisible(!document.hidden)
+  preference?.addEventListener('change', syncMotion)
+  document.addEventListener('visibilitychange', syncVisibility)
+  return () => {
+   preference?.removeEventListener('change', syncMotion)
+   document.removeEventListener('visibilitychange', syncVisibility)
+  }
+ }, [])
+
+ useEffect(() => {
+  if (!playing || !visible || reducedMotion) return
+  const timer = window.setTimeout(() => {
+   setAnimate(true)
+   setTurn(value => value + 1)
+  }, 4500)
+  return () => window.clearTimeout(timer)
+ }, [turn, playing, visible, reducedMotion])
+
+ function selectFeature(index, event) {
+  setPlaying(false)
+  setAnimate(event.detail > 0)
+  const forward = (index - active + features.length) % features.length
+  setTurn(turn + (forward > features.length / 2 ? forward - features.length : forward))
+ }
+
+ return (
+  <section aria-label="Feature preview" data-animate={animate} className="product-feature-preview grid min-w-0 justify-items-center gap-3">
+   <div className="relative grid aspect-square w-full max-w-[min(76vw,22rem)] place-items-center">
+    <svg aria-hidden="true" viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 size-full text-[#a9c69d]">
+     <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeOpacity=".38" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+    </svg>
+    <div aria-hidden="true" className="grid size-28 place-items-center sm:size-36">
+     {features.map(({ icon: Icon, title, tone }, index) => {
+      return (
+       <div key={title} data-current={active === index} style={accentStyle(tone)} className="accent-item product-feature-scene col-start-1 row-start-1 grid size-full place-items-center rounded-full">
+        <Icon strokeWidth={1.45} className="size-14 sm:size-18" />
+       </div>
+      )
+     })}
+    </div>
+    {features.map(({ icon: Icon, title }, index) => (
+     <div key={title} className="product-orbit-item pointer-events-none absolute inset-0" style={{ '--orbit-angle': `${(index - turn) * 360 / features.length}deg` }}>
+      <Button type="button" variant="ghost" size="icon" aria-label={title} aria-pressed={active === index} onClick={event => selectFeature(index, event)} className="product-orbit-button pointer-events-auto absolute top-[8%] left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#244631] text-[#dcebd8] hover:bg-[#365b43] hover:text-white aria-pressed:bg-[#d9edb9] aria-pressed:text-[#193923]">
+       <Icon aria-hidden="true" size={18} />
+      </Button>
+     </div>
+    ))}
+   </div>
+   <div className="grid min-h-11 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3">
+    <h2 data-active="true" className="col-start-2 row-start-1 text-center text-lg font-semibold tracking-tight sm:text-2xl">{features[active].title}</h2>
+    {!reducedMotion && (
+     <Button type="button" variant="ghost" size="icon" aria-label={playing ? 'Pause feature rotation' : 'Play feature rotation'} onClick={() => setPlaying(!playing)} className="col-start-3 row-start-1 rounded-full text-[#dcebd8] hover:bg-white/10 hover:text-white">
+      {playing ? <Pause aria-hidden="true" size={16} /> : <Play aria-hidden="true" size={16} />}
+     </Button>
+    )}
+   </div>
+  </section>
+ )
+}
+
 export default function ProductPage() {
  const [role, setRole] = useState(0)
 
  return (
-  <div className="product-page bg-[#f6f7ef] text-[#203425] [--accent:#e4edda] [--border:#dce5d5] [--card:#fffefa] [--primary:#285436] [--ring:#47734f]">
-   <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
-    <a href="/" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4" aria-label="Nilatext home"><Brand /></a>
-    <nav aria-label="Product" className="order-last flex w-full flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-sm font-medium sm:order-0 sm:w-auto sm:border-0 sm:pt-0">
-     <a className="py-2 hover:underline" href="#features">Features</a>
-     <a className="py-2 hover:underline" href="#roles">Who it’s for</a>
-     <a className="py-2 hover:underline" href="#faq">FAQ</a>
-    </nav>
-    <AccountLink variant="outline">Sign in</AccountLink>
-   </header>
+  <div className="product-page bg-background text-foreground">
+   <main>
+    <section aria-labelledby="product-heading" className="grid min-h-svh grid-rows-[auto_1fr_auto] bg-[radial-gradient(ellipse_at_50%_28%,#365b43_0%,#162c21_70%)] text-[#f6f7ef] [--ring:#d9edb9]">
+     <header className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4 sm:px-8">
+      <a href="/" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 [&_.text-muted-foreground]:text-[#d1e3cb] [&_.text-primary]:text-[#f6f7ef]" aria-label="Nilatext home"><Brand /></a>
+      <nav aria-label="Product" className="order-last flex w-full flex-wrap gap-x-5 border-t border-white/20 pt-1 text-sm font-medium sm:order-0 sm:w-auto sm:border-0 sm:pt-0">
+       <a className="inline-flex min-h-11 items-center hover:underline" href="#features">Features</a>
+       <a className="inline-flex min-h-11 items-center hover:underline" href="#roles">Who it’s for</a>
+       <a className="inline-flex min-h-11 items-center hover:underline" href="#faq">FAQ</a>
+      </nav>
+      <AccountLink variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white">Sign in</AccountLink>
+     </header>
 
-   <main className="mx-auto max-w-7xl space-y-16 px-5 pb-16 sm:space-y-24 sm:px-8">
-    <section aria-labelledby="product-heading" className="grid overflow-hidden rounded-[2rem] bg-[#e5edd9] md:grid-cols-[1.05fr_1fr]">
-     <div className="flex flex-col justify-center px-6 py-11 sm:px-10 lg:px-14 lg:py-16">
-      <h1 id="product-heading" className="max-w-xl text-[clamp(2.75rem,5.5vw,5.25rem)] leading-[1.02] font-semibold tracking-[-0.07em]">Your school day, in one place.</h1>
-      <p className="mt-5 max-w-md text-base leading-relaxed text-[#3e5644] sm:text-lg">Manage classes, attendance, assignments, reports and fees in one portal. Give families a clear view of their learner’s progress.</p>
-      <div className="mt-7 flex flex-wrap gap-3">
-       <AccountLink signup>Create an account <ArrowRight aria-hidden="true" size={17} /></AccountLink>
-       <Button asChild variant="outline"><a href="#features">Explore features</a></Button>
+     <div className="mx-auto grid w-full max-w-7xl items-center gap-7 px-5 py-6 sm:px-8 md:grid-cols-[1fr_1fr] lg:gap-14">
+      <div className="grid justify-items-start gap-4">
+       <h1 id="product-heading" className="max-w-[16ch] text-[clamp(2.5rem,7vw,6rem)] leading-[1.02] font-semibold tracking-[-0.07em] text-balance">Your school day, in one place.</h1>
+       <p className="max-w-xl text-base leading-relaxed text-[#dcebd8] sm:text-lg">Manage classes, attendance, assignments, reports and fees in one portal. Give families a clear view of their learner’s progress.</p>
+       <AccountLink signup className="mt-2 rounded-full bg-[#d9edb9] px-5 text-[#193923] hover:bg-[#e6f2d2]">Create an account <ArrowRight aria-hidden="true" size={17} /></AccountLink>
       </div>
+      <FeatureShowcase />
      </div>
-     <img src="/images/nilatext-classroom.webp" width="1100" height="1375" alt="Illustration of a teacher at a laptop in a classroom" fetchPriority="high" className="aspect-[5/4] w-full object-cover object-[center_35%] md:aspect-auto md:h-full md:min-h-[31rem]" />
+
+     <div className="flex justify-center px-5 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <Button asChild variant="ghost" size="icon" className="rounded-full border border-white/45 text-white hover:bg-white/10 hover:text-white">
+       <a href="#features" aria-label="Explore features"><ArrowDown aria-hidden="true" size={19} /></a>
+      </Button>
+     </div>
     </section>
 
+    <div className="mx-auto max-w-7xl space-y-16 px-5 py-16 sm:space-y-24 sm:px-8 sm:py-24">
     <section id="features" aria-labelledby="features-heading" className="scroll-mt-6">
      <h2 id="features-heading" className="mb-6 text-3xl font-semibold tracking-tight sm:text-4xl">Tools for everyday school work</h2>
-     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {features.map(({ icon: Icon, title, text }) => (
-       <Card key={title} className="gap-3 shadow-none">
-        <CardHeader className="flex-col">
-         <span className="grid size-10 place-items-center rounded-lg bg-accent text-primary"><Icon aria-hidden="true" size={20} /></span>
-         <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent><CardDescription>{text}</CardDescription></CardContent>
-       </Card>
-      ))}
+     <div className="divide-y border-y">
+      {features.map(({ icon: Icon, title, text, tone }, index) => {
+       return (
+        <article key={title} className="grid gap-5 py-7 sm:grid-cols-2 sm:items-stretch sm:gap-0 sm:py-0">
+         <div style={accentStyle(tone)} className={`accent-item grid min-h-36 place-items-center rounded-xl sm:min-h-60 sm:rounded-none ${index % 2 ? 'sm:col-start-2 sm:row-start-1' : ''}`}>
+          <Icon aria-hidden="true" strokeWidth={1.35} className="size-16 sm:size-24" />
+         </div>
+         <div className={`flex min-w-0 flex-col items-start justify-center gap-2 px-2 text-left sm:px-8 sm:py-8 lg:px-12 ${index % 2 ? 'sm:col-start-1 sm:row-start-1' : ''}`}>
+          <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h3>
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground sm:text-base">{text}</p>
+         </div>
+        </article>
+       )
+      })}
      </div>
     </section>
 
@@ -78,17 +160,17 @@ export default function ProductPage() {
       <h2 id="roles-heading" className="text-3xl font-semibold tracking-tight sm:text-4xl">A workspace for each role</h2>
       <p className="mt-3 max-w-md text-[#3e5644]">Administrators manage access so staff and families see the school records relevant to them.</p>
       <div role="group" aria-label="School roles" className="mt-5 flex flex-wrap gap-2">
-       {roles.map(({ name }, index) => (
-        <Button key={name} type="button" variant={role === index ? 'default' : 'outline'} aria-pressed={role === index} onClick={() => setRole(index)}>{name}</Button>
+       {roles.map(({ name, tone }, index) => (
+        <Button key={name} type="button" variant="outline" className="accent-item accent-control" style={accentStyle(tone)} aria-pressed={role === index} onClick={() => setRole(index)}>{name}</Button>
        ))}
       </div>
      </div>
-     <Card aria-live="polite" aria-atomic="true" className="min-h-44 justify-center gap-2 shadow-none">
+     <Card aria-live="polite" aria-atomic="true" style={accentStyle(roles[role].tone)} className="accent-item min-h-44 justify-center gap-2 shadow-none">
       <CardHeader className="flex-col">
-       <Users aria-hidden="true" size={23} className="text-primary" />
+       <Users aria-hidden="true" size={23} />
        <h3 className="text-xl font-semibold">{roles[role].title}</h3>
       </CardHeader>
-      <CardContent><CardDescription>{roles[role].text}</CardDescription></CardContent>
+      <CardContent><CardDescription className="text-current">{roles[role].text}</CardDescription></CardContent>
      </Card>
     </section>
 
@@ -119,6 +201,7 @@ export default function ProductPage() {
       <AccountLink variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white">Sign in <ArrowRight aria-hidden="true" size={17} /></AccountLink>
      </div>
     </section>
+    </div>
    </main>
    <footer className="border-t">
     <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 text-sm sm:px-8">

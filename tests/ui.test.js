@@ -21,14 +21,14 @@ const {createRoot}=await import('react-dom/client')
 let fixture,identity,authListener,root,serial=0
 function reset(role='admin'){
  identity={user:{id:role,email:role+'@example.invalid'}}
- fixture={nt_schools:[{id:'school',name:'Test School'}],nt_profiles:[{user_id:role,school_id:'school',role,display_name:'Test '+role,email:role+'@example.invalid'}],nt_terms:[{id:'term',school_id:'school',year:2026,number:1}],nt_classes:[{id:'class',school_id:'school',name:'Grade 8A',teacher_id:'teacher'}],nt_students:[{id:'learner',school_id:'school',class_id:'class',admission_no:'ADM001',full_name:'Amina Hassan',active:true,guardian_name:'Test Guardian',guardian_phone:'0700000000'}],nt_marks:['Mathematics','English','Integrated Science','Kiswahili','Humanities'].map(subject=>({school_id:'school',student_id:'learner',term_id:'term',subject,score:80})),nt_attendance:[],nt_invoices:[{id:'invoice',school_id:'school',student_id:'learner',term_id:'term',amount:25000,description:'Term tuition'}],nt_payments:[],nt_invites:[],nt_student_links:[],nt_notes:[],nt_departments:[],nt_subjects:[],nt_offerings:[],nt_lessons:[],nt_elective_enrolments:[],nt_assignments:[],nt_assignment_submissions:[],nt_lesson_attendance:[]}
+ fixture={nt_assessments:[],nt_assessment_results:[],nt_teacher_roster:[],nt_schools:[{id:'school',name:'Test School'}],nt_profiles:[{user_id:role,school_id:'school',role,display_name:'Test '+role,email:role+'@example.invalid'}],nt_terms:[{id:'term',school_id:'school',year:2026,number:1}],nt_classes:[{id:'class',school_id:'school',name:'Grade 8A',teacher_id:'teacher'}],nt_students:[{id:'learner',school_id:'school',class_id:'class',admission_no:'ADM001',full_name:'Amina Hassan',active:true,guardian_name:'Test Guardian',guardian_phone:'0700000000'}],nt_marks:['Mathematics','English','Integrated Science','Kiswahili','Humanities'].map(subject=>({school_id:'school',student_id:'learner',term_id:'term',subject,score:80})),nt_attendance:[],nt_invoices:[{id:'invoice',school_id:'school',student_id:'learner',term_id:'term',amount:25000,description:'Term tuition'}],nt_payments:[],nt_invites:[],nt_student_links:[],nt_notes:[],nt_departments:[],nt_subjects:[],nt_offerings:[],nt_lessons:[],nt_elective_enrolments:[],nt_assignments:[],nt_assignment_submissions:[],nt_lesson_attendance:[]}
 }
 class Query{
  constructor(table){this.table=table;this.filters=[];this.operation='read';this.value=null;this.start=0;this.end=999}
  select(){return this}eq(k,v){this.filters.push([k,v]);return this}order(){return this}range(a,b){this.start=a;this.end=b;return this}limit(n){this.end=n-1;return this}
  insert(v){this.operation='insert';this.value=v;return this}update(v){this.operation='update';this.value=v;return this}upsert(v){this.operation='upsert';this.value=v;return this}delete(){this.operation='delete';return this}
  single(){this.one=true;return this}maybeSingle(){this.one=true;return this}
- then(resolve,reject){try{let rows=fixture[this.table],matches=r=>this.filters.every(([k,v])=>r[k]===v),result;if(this.operation==='read')result=rows.filter(matches).slice(this.start,this.end+1);if(this.operation==='insert'){result=(Array.isArray(this.value)?this.value:[this.value]).map(v=>({id:'new'+(++serial),created_at:new Date().toISOString(),...v}));rows.push(...result)}if(this.operation==='update'){result=rows.filter(matches);result.forEach(r=>Object.assign(r,this.value))}if(this.operation==='delete'){result=rows.filter(matches);fixture[this.table]=rows.filter(r=>!matches(r))}if(this.operation==='upsert'){result=[];for(const v of this.value){const keys=this.table==='nt_marks'?['student_id','term_id','subject']:this.table==='nt_lesson_attendance'?['lesson_id','student_id','day']:['student_id','day'];let r=rows.find(r=>keys.every(k=>r[k]===v[k]));if(r)Object.assign(r,v);else{r={...v};rows.push(r)}result.push(r)}}return Promise.resolve({data:structuredClone(this.one?result[0]??null:result),error:null}).then(resolve,reject)}catch(e){return Promise.reject(e).then(resolve,reject)}}
+ then(resolve,reject){try{let rows=fixture[this.table],matches=r=>this.filters.every(([k,v])=>r[k]===v),result;if(this.operation==='read')result=rows.filter(matches).slice(this.start,this.end+1);if(this.operation==='insert'){result=(Array.isArray(this.value)?this.value:[this.value]).map(v=>({id:'new'+(++serial),created_at:new Date().toISOString(),...v}));rows.push(...result)}if(this.operation==='update'){result=rows.filter(matches);result.forEach(r=>Object.assign(r,this.value))}if(this.operation==='delete'){result=rows.filter(matches);fixture[this.table]=rows.filter(r=>!matches(r))}if(this.operation==='upsert'){result=[];for(const v of this.value){const keys=this.table==='nt_marks'?['student_id','term_id','subject']:this.table==='nt_assessment_results'?['student_id','assessment_id','offering_id']:this.table==='nt_lesson_attendance'?['lesson_id','student_id','day']:['student_id','day'];let r=rows.find(r=>keys.every(k=>r[k]===v[k]));if(r)Object.assign(r,v);else{r={...v};rows.push(r)}result.push(r)}}return Promise.resolve({data:structuredClone(this.one?result[0]??null:result),error:null}).then(resolve,reject)}catch(e){return Promise.reject(e).then(resolve,reject)}}
 }
 globalThis.__schoolClient={from:t=>new Query(t),rpc:(name,args)=>{
  if(name==='nt_offering_roster'){
@@ -62,6 +62,94 @@ test('administrator workflow persists learner enrolment, marks, attendance, paym
  await click('Cancel approval');await click('Confirm removal');assert.equal(fixture.nt_invites.length,0)
  await click(document.querySelector('[aria-label="Sign out"]'));assert.ok(text().includes('Welcome to your school.'));assert.ok(!text().includes('Amina Hassan'))
  await unmount()
+})
+test('staff can preview and import CSV results for the selected term', async () => {
+ await mount()
+ try {
+  await click('Students')
+  assert.ok(button('Export students CSV'))
+  await click('People & access')
+  assert.ok(button('Export staff CSV'))
+  await click('Academic reports')
+  await click('Upload report card marks CSV')
+  const input = document.querySelector('input[type="file"]')
+  Object.defineProperty(input, 'files', { value: [{ name: 'results.csv', text: async () => 'Admission no,Subject,Score\nADM001,Mathematics,95' }] })
+  await act(async () => input.dispatchEvent(new dom.window.Event('change', { bubbles: true })))
+  await flush()
+  assert.ok(button('Import 1 record'))
+  await click('Import 1 record')
+  assert.equal(fixture.nt_marks.find(mark => mark.subject === 'Mathematics').score, 95)
+  await click('Fees')
+  assert.ok(button('Upload invoices CSV'))
+  assert.ok(button('Upload payments CSV'))
+ } finally {
+  await unmount()
+ }
+})
+test('roster uploads keep school IDs and require a separate teacher approval', async () => {
+ await mount()
+ async function upload(name, csv) {
+  const modal = document.querySelector('[role="dialog"]')
+  assert.ok([...modal.querySelectorAll('button, a')].some(node => node.textContent.trim() === 'Download Excel template'))
+  const input = modal.querySelector('input[type="file"]')
+  Object.defineProperty(input, 'files', { value: [{ name, text: async () => csv }] })
+  await act(async () => input.dispatchEvent(new dom.window.Event('change', { bubbles: true })))
+  await flush()
+  await click('Import 1 record')
+ }
+ try {
+  await click('Students')
+  await click('Upload students CSV')
+  await fill('[role="dialog"] select','class')
+  await upload('students.csv', 'Name,Admission Number,Class,Stream\nImported Learner,007/A-2,Grade 8A,')
+  assert.ok(fixture.nt_students.some(student => student.admission_no === '007/A-2'))
+  await click('People & access')
+  await click('Upload teachers CSV')
+  await upload('teachers.csv', 'TSC Number,Name\n007521,Imported Teacher')
+  assert.equal(fixture.nt_teacher_roster[0].tsc_no, '007521')
+  assert.equal(fixture.nt_invites.length, 0)
+  await click('Review access')
+  await fill('[role="dialog"] [name="email"]','teacher-import@example.invalid')
+  await submit()
+  assert.equal(fixture.nt_invites[0].role, 'teacher')
+  assert.equal(fixture.nt_invites[0].email, 'teacher-import@example.invalid')
+ } finally {
+  await unmount()
+ }
+})
+test('year and term templates import one assessment subject and one term payment', async () => {
+ await mount()
+ fixture.nt_classes[0].level = 'Grade 8'
+ fixture.nt_classes[0].stream = 'G'
+ await click(document.querySelector('[aria-label="Refresh school data"]'))
+ fixture.nt_assessments.push({ id:'cat', school_id:'school', term_id:'term', name:'CAT 2', sort_order:2 })
+ fixture.nt_subjects.push({ id:'math', school_id:'school', name:'Mathematics' })
+ fixture.nt_offerings.push({ id:'offering', school_id:'school', term_id:'term', subject_id:'math', class_id:'class', teacher_id:'teacher', elective:false })
+ async function upload(name, csv) {
+  const input = document.querySelector('[role="dialog"] input[type="file"]')
+  assert.ok(input)
+  Object.defineProperty(input, 'files', { value: [{ name, text: async () => csv }] })
+  await act(async () => input.dispatchEvent(new dom.window.Event('change', { bubbles: true })))
+  await flush()
+  await click('Import 1 record')
+ }
+ try {
+  await click('Academic reports')
+  await click('Upload results CSV')
+  await fill('[role="dialog"] fieldset label:nth-child(3) select', 'cat')
+  await fill('[role="dialog"] fieldset label:nth-child(4) select', 'class')
+  await fill('[role="dialog"] fieldset label:nth-child(5) select', 'offering')
+  await upload('scores.csv', 'Name,Admission Number,Class,Stream,Year,Term,Assessment,Subject,Score\nAmina Hassan,ADM001,Grade 8,G,2026,1,CAT 2,Mathematics,92')
+  assert.equal(fixture.nt_assessment_results[0].score, 92)
+  assert.equal(fixture.nt_assessment_results[0].term_id, 'term')
+  await click('Fees')
+  await click('Upload payments CSV')
+  await upload('payments.csv', 'Name,Admission Number,Class,Stream,Year,Term,Receipt Reference,Amount Paid\nAmina Hassan,ADM001,Grade 8,G,2026,1,PAID-1,250')
+  assert.equal(fixture.nt_payments[0].amount, 250)
+  assert.equal(fixture.nt_payments[0].invoice_id, 'invoice')
+ } finally {
+  await unmount()
+ }
 })
 test('the welcome tour leaves sign-in and account actions available', async () => {
  await mount()
@@ -126,6 +214,11 @@ test('the home page introduces Nilatext and links to sign-in and signup', async 
   assert.match(document.querySelector('h1').textContent, /Your school day, in one place/)
   assert.ok(document.querySelector('a[href="/?view=signin"]'))
   assert.ok(document.querySelector('a[href="/?view=signup"]'))
+  const preview = document.querySelector('[aria-label="Feature preview"]')
+  await click(preview.querySelector('[aria-label="Academic reports"]'))
+  assert.match(preview.querySelector('[data-active="true"]').textContent, /Academic reports/)
+  assert.equal(preview.querySelector('[aria-label="Academic reports"]').getAttribute('aria-pressed'), 'true')
+  assert.ok(preview.querySelector('[aria-label="Play feature rotation"]'))
   await click('Families')
   assert.match(document.querySelector('[aria-live="polite"]').textContent, /Follow your learner/)
  } finally {
@@ -189,6 +282,43 @@ test('mobile menu closes when navigating or pressing Escape', async () => {
  assert.equal(menu.getAttribute('aria-expanded'), 'false')
  assert.equal(document.activeElement, menu)
  await unmount()
+})
+
+test('sidebar collapses to a rail and keeps the full navigation', async () => {
+ await mount()
+ const sidebar = document.querySelector('#pane-navigation')
+ assert.match(sidebar.textContent, /School settings/)
+ assert.ok(!document.querySelector('#pane-workspace nav'))
+ await click(sidebar.querySelector('[aria-label="Minimize sidebar"]'))
+ assert.equal(sidebar.closest('.portal-workspace').style.getPropertyValue('--navigation-width'), '72px')
+ assert.ok(!document.querySelector('[aria-label="Resize navigation pane"]'))
+ await click(sidebar.querySelector('[aria-label="Expand sidebar"]'))
+ assert.equal(sidebar.closest('.portal-workspace').style.getPropertyValue('--navigation-width'), '240px')
+ await click('School settings')
+ assert.equal(document.querySelector('main').getAttribute('aria-label'), 'School settings')
+ await unmount()
+})
+
+test('a report opens in the right pane on wide screens and returns focus when closed', async () => {
+ const previous = dom.window.matchMedia
+ dom.window.matchMedia = query => ({ matches: query === '(min-width: 80rem)', addEventListener() {}, removeEventListener() {} })
+ try {
+  await mount()
+  await click('Academic reports')
+  const preview = [...document.querySelectorAll('tbody button')].find(button => button.textContent.includes('Preview'))
+  preview.focus()
+  await click(preview)
+  const pane = document.querySelector('#pane-workspace')
+  assert.match(pane.textContent, /Learner progress report/)
+  assert.equal(document.activeElement.id, 'workspace-detail-title')
+  assert.ok(!document.querySelector('[role="dialog"]'))
+  await click(pane.querySelector('[aria-label="Close details"]'))
+  assert.ok(!pane.querySelector('.portal-detail'))
+  assert.equal(document.activeElement, preview)
+ } finally {
+  dom.window.matchMedia = previous
+  await unmount()
+ }
 })
 
 test('workspace separators resize with the keyboard and enforce pane limits', async () => {
