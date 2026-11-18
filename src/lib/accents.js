@@ -1,10 +1,10 @@
 const accents = {
-  learners: ['#dcebc9', '#2f513a'],
-  attendance: ['#d4e8ec', '#264d5a'],
-  assignments: ['#f0dfbe', '#674726'],
-  reports: ['#e6ddf1', '#59436e'],
-  fees: ['#d6e8dd', '#335a52'],
-  access: ['#f2ded6', '#6c443a'],
+  learners: ['#dcebf9', '#264c6a'],
+  attendance: ['#d1e8f1', '#234c60'],
+  assignments: ['#dce3f7', '#334974'],
+  reports: ['#e3e7fa', '#414e7e'],
+  fees: ['#d6e7f8', '#2a537b'],
+  access: ['#e6eef6', '#3e5770'],
 }
 
 export function accentStyle(tone) {
